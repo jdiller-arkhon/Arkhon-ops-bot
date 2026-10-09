@@ -1,0 +1,89 @@
+// Single schema shared by every Arkhon bot.
+// Conventions:
+//   - Models are prefixed with the bot that owns them (Ops*, Certa*, Argus*).
+//   - Tables are mapped to "<bot>_<name>" so each bot's data is namespaced.
+//   - No Prisma enums or native DB types: the same schema must run on SQLite (dev) and
+//     PostgreSQL (prod). Status-like columns are strings validated in application code.
+// The canonical provider is PostgreSQL. scripts/prisma.mjs rewrites the provider to SQLite
+// when DATABASE_URL starts with "file:".
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------------- Ops bot
+
+model OpsTicket {
+  id                Int       @id @default(autoincrement())
+  guildId           String
+  product           String // "certa" | "argus"
+  userId            String
+  channelId         String?   @unique // thread or channel id, set once created
+  channelKind       String    @default("thread") // "thread" | "channel"
+  subject           String
+  description       String
+  appVersion        String?
+  status            String    @default("open") // "open" | "waiting" | "closed"
+  claimedById       String?
+  closedById        String?
+  createdAt         DateTime  @default(now())
+  firstStaffReplyAt DateTime?
+  closedAt          DateTime?
+
+  @@index([product, status])
+  @@index([userId, product, status])
+  @@map("ops_tickets")
+}
+
+model OpsPanel {
+  key       String   @id // "support" | "roles"
+  channelId String
+  messageId String
+  updatedAt DateTime @updatedAt
+
+  @@map("ops_panels")
+}
+
+model OpsModAction {
+  id              Int      @id @default(autoincrement())
+  guildId         String
+  targetId        String
+  moderatorId     String
+  action          String // "warn" | "timeout"
+  reason          String
+  durationMinutes Int?
+  createdAt       DateTime @default(now())
+
+  @@index([guildId, targetId])
+  @@map("ops_mod_actions")
+}
+
+model OpsRelease {
+  id        Int      @id @default(autoincrement())
+  product   String
+  version   String
+  source    String // "webhook" | "github"
+  messageId String?
+  createdAt DateTime @default(now())
+
+  @@unique([product, version])
+  @@map("ops_releases")
+}
+
+model OpsFeedbackIssue {
+  id           Int      @id @default(autoincrement())
+  threadId     String   @unique
+  product      String
+  repo         String
+  issueNumber  Int?
+  issueUrl     String?
+  promotedById String
+  createdAt    DateTime @default(now())
+
+  @@map("ops_feedback_issues")
+}

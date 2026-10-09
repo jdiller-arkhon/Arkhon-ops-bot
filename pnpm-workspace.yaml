@@ -1,0 +1,9 @@
+packages:
+  - packages/*
+  - bots/*
+
+onlyBuiltDependencies:
+  - prisma
+  - '@prisma/client'
+  - '@prisma/engines'
+  - esbuild

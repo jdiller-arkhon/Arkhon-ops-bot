@@ -1,0 +1,20 @@
+{
+  "name": "@arkhon/ops-bot",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc -b",
+    "dev": "tsx watch --conditions=development src/index.ts | pino-pretty",
+    "start": "node dist/index.js",
+    "deploy:commands": "tsx --conditions=development src/deploy-commands.ts",
+    "deploy:commands:prod": "node dist/deploy-commands.js"
+  },
+  "dependencies": {
+    "@arkhon/shared": "workspace:*",
+    "@prisma/client": "6.19.3",
+    "discord.js": "^14.27.0",
+    "zod": "^3.25.76"
+  }
+}

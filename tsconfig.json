@@ -1,0 +1,16 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "customConditions": ["development"],
+    "types": ["node"]
+  },
+  "include": [
+    "packages/*/src",
+    "packages/*/test",
+    "bots/*/src",
+    "bots/*/test",
+    "vitest.config.ts",
+    "eslint.config.js"
+  ]
+}

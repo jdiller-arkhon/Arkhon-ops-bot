@@ -1,0 +1,42 @@
+{
+  "name": "arkhon-bots",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@10.28.0",
+  "engines": {
+    "node": ">=20.12"
+  },
+  "scripts": {
+    "postinstall": "node scripts/prisma.mjs generate",
+    "build": "tsc -b bots/ops",
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "db:generate": "node scripts/prisma.mjs generate",
+    "db:push": "node scripts/prisma.mjs db push",
+    "db:migrate": "node scripts/prisma.mjs migrate deploy",
+    "db:studio": "node scripts/prisma.mjs studio",
+    "dev:ops": "pnpm --filter @arkhon/ops-bot dev",
+    "start:ops": "pnpm --filter @arkhon/ops-bot start",
+    "deploy:commands": "pnpm --filter @arkhon/ops-bot deploy:commands"
+  },
+  "dependencies": {
+    "@prisma/client": "6.19.3",
+    "prisma": "6.19.3"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.5",
+    "@types/node": "^20.19.43",
+    "eslint": "^9.39.5",
+    "eslint-config-prettier": "^10.1.8",
+    "pino-pretty": "^13.2.0",
+    "prettier": "^3.9.9",
+    "tsx": "^4.23.15",
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.71.1",
+    "vitest": "^3.2.7"
+  }
+}

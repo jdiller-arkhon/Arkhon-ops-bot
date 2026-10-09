@@ -1,0 +1,8 @@
+node_modules/
+dist/
+*.tsbuildinfo
+.env
+prisma/.generated/
+prisma/*.db
+prisma/*.db-journal
+coverage/
