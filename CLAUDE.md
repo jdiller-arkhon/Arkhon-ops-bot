@@ -30,6 +30,10 @@ bots/ops/          @arkhon/ops-bot
   src/moderation/        AutoMod rules, /mod helpers
   src/releases/          HTTP server, HMAC verification, payload parsing, announcement
   src/feedback/          forum reaction -> GitHub issue
+  src/layout.ts          LayoutStore: channel/role ids from /setup (DB) with env overrides
+  src/startup.ts         panels, posted content, AutoMod: runs on startup and after /setup
+  src/setup/             blueprint.ts (the whole server as data), plan.ts (pure diff),
+                         apply.ts (Discord side), content.ts (welcome/rules), session.ts (preview/confirm)
 bots/certa/, bots/argus/ placeholders for the next two bots
 prisma/schema.prisma     single schema for all bots; prisma/migrations are PostgreSQL migrations
 scripts/prisma.mjs       Prisma CLI wrapper that switches to SQLite when DATABASE_URL starts with file:
@@ -80,6 +84,15 @@ Run `pnpm typecheck && pnpm lint && pnpm test` before committing. All three must
   for state transitions.
 - **Logging:** pino via `createLogger(botName)`. Log objects first, message second. No `console.log`
   outside entry-point fatal errors.
+- **Server layout:** never hard-code channel or role ids. Feature code gets them from
+  `ctx.layout.require()` (interactions; throws a user-facing "run /setup server" error) or
+  `ctx.layout.current` (events/webhooks; skip when undefined). To add a channel or role, add it to
+  `src/setup/blueprint.ts`; if a feature needs its id, add the key to `REQUIRED_RESOURCES` or
+  `OPTIONAL_RESOURCES` in `src/layout.ts` and map it in `buildLayout()`. Blueprint keys are stored
+  in the database, so never rename a key (names are free to change).
+- **Buildout safety:** `/setup server` must stay previewable and idempotent. The planner is pure
+  and tested; the executor treats every resource independently and saves ids as it goes. Never add
+  deletion of resources outside the blueprint.
 - **No TODOs, stubs or placeholder functions.** Everything merged must run.
 
 ## Testing rules
@@ -91,49 +104,29 @@ Run `pnpm typecheck && pnpm lint && pnpm test` before committing. All three must
   tokens, network access or a database. HTTP handlers are tested by starting the server on port 0
   with a fake `OpsContext`.
 - Required coverage areas: ticket state transitions, webhook signature verification, config
-  validation. Add tests with every behavior change in those areas.
+  validation, and the server blueprint/planner (`blueprint.test.ts`, `setup-plan.test.ts`,
+  `setup-apply.test.ts` with an in-memory guild). Add tests with every behavior change in those areas.
 
 ## Discord server permission setup
 
-Roles (create in this order, top to bottom): `Arkhon Ops` (the bot's role, must sit above the
-user roles), `Certa Staff`, `Argus Staff`, `Certa User`, `Argus User`.
+`/setup server` builds roles, categories, channels and their permissions from
+`bots/ops/src/setup/blueprint.ts`; that file is the source of truth for who can see and post where.
+Summary of the model:
 
-Give `Certa Staff` and `Argus Staff` the **Manage Messages** and **Timeout Members** permissions so
-`/ticket` and `/mod` are visible to them (these are the commands' default member permissions; you
-can override per role in Server Settings → Integrations → Arkhon Ops). Staff must also hold their
-staff role: the bot checks roles on every staff action, so permissions alone are not enough
-(administrators always pass).
-
-Categories and channels:
-
-| Category / channel  | @everyone          | Certa User | Argus User | Certa Staff         | Argus Staff         | Bot                                                                 |
-| ------------------- | ------------------ | ---------- | ---------- | ------------------- | ------------------- | ------------------------------------------------------------------- |
-| `#start-here`       | view, no send      |            |            |                     |                     | view, send                                                          |
-| `#announcements`    | view, no send      |            |            |                     |                     | view, send, embed                                                   |
-| `#support`          | view, no send      |            |            | view                | view                | view, send, create private threads, send in threads, manage threads |
-| `#feedback` (forum) | view, create posts |            |            | view, add reactions | view, add reactions | view, send in threads, read history                                 |
-| **Certa** category  | deny view          | allow view |            | allow view          |                     | allow view                                                          |
-| **Argus** category  | deny view          |            | allow view |                     | allow view          | allow view                                                          |
-| `#ticket-archive`   | deny view          |            |            | allow view          | allow view          | view, send, attach files                                            |
-| `#mod-log`          | deny view          |            |            | allow view          | allow view          | view, send, embed                                                   |
-
-Notes:
-
-- Product categories are unlocked purely by the `Certa User` / `Argus User` roles: deny `View Channel`
-  for @everyone on the category, allow it for the user role and the matching staff role, and keep
-  the channels inside synced to the category.
-- `#support`: members must be able to see the panel and click buttons, but not post. Private
-  ticket threads are visible only to members added to them (the user, the bot, staff who are
-  @mentioned or added). Anyone with **Manage Threads** on `#support` can see every private thread;
-  give that only to roles that should see all tickets.
-- Private channel fallback (`TICKET_MODE=channel` or no thread permissions): the bot creates
-  channels under `TICKET_CATEGORY_ID` with overwrites for the user, the staff role and itself, so
-  it needs **Manage Channels** there.
-- `#feedback`: create forum tags named exactly `Certa` and `Argus`, and turn on **Require people to
-  select tags when posting**. The bot also reminds posters who skip the tag.
-- `#announcements`: the bot pings `Certa User` or `Argus User`. Either make those roles mentionable
-  or keep **Mention @everyone, @here, and All Roles** on the bot's role.
-- Native Onboarding: in Server Settings → Onboarding, add a question "Which products do you use?"
-  with answers that grant `Certa User` and/or `Argus User`. The `#start-here` panel is the fallback.
-- AutoMod: the bot needs **Manage Server** to create rules. Rules are matched by name
-  (`Arkhon: ...`); renaming one makes the bot create it again on next start.
+- Role order (top to bottom): the bot's own role, Arkhon Team, Moderator, Certa Staff, Argus Staff,
+  Certa User, Argus User. The bot's role must be at the top; it can only manage roles below it.
+- **Arkhon Team** is staff for every product (tickets, /ticket, /mod). **Certa/Argus Staff** handle
+  their product's tickets. **Moderator** can use /mod and sees product channels but does not handle
+  tickets. Administrators pass every check. Staff permissions (Manage Messages, Timeout Members) make
+  `/ticket` and `/mod` visible; the bot also checks roles on every action.
+- Product categories are hidden from @everyone and unlocked by Certa User / Argus User (granted by
+  Onboarding or the #start-here panel). Staff categories are visible only to staff roles.
+- #support is read-only except inside private ticket threads (members can post in threads but not
+  create them). Anyone with Manage Threads on #support can see every ticket; keep that to roles that
+  should.
+- #ticket-archive and #mod-log are written only by the bot.
+- The feedback forum requires a tag and has `Certa` and `Argus` tags; the bot reads those names.
+- Announcement pings work because Certa User / Argus User are mentionable.
+- Private-channel ticket fallback (`TICKET_MODE=channel`) needs Manage Channels in
+  `TICKET_CATEGORY_ID`.
+- AutoMod rules are matched by name (`Arkhon: ...`); renaming one makes the bot create it again.

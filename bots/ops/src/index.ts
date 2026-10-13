@@ -6,13 +6,11 @@ import type { OpsContext } from './context.js';
 import { createPrisma } from './db.js';
 import { onFeedbackReaction, onFeedbackThreadCreate } from './feedback/forum.js';
 import { createInteractionHandler } from './interactions.js';
-import { ensureAutoModRules } from './moderation/automod.js';
-import { buildRolePanel } from './onboarding/roles.js';
 import { sendWelcomeDm } from './onboarding/welcome.js';
-import { ensurePanel } from './panels/ensure.js';
 import { createWebhookServer } from './releases/server.js';
-import { buildSupportPanel } from './tickets/panel.js';
-import { loadActiveTicketChannels, onTicketMessage } from './tickets/service.js';
+import { onTicketMessage } from './tickets/service.js';
+import { runLayoutTasks } from './startup.js';
+import { LayoutStore } from './layout.js';
 
 async function main(): Promise<void> {
   loadDotEnv();
@@ -39,7 +37,8 @@ async function main(): Promise<void> {
     allowedMentions: { parse: [] },
   });
 
-  const ctx: OpsContext = { config, logger, prisma, client };
+  const layout = new LayoutStore(config.layoutOverrides);
+  const ctx: OpsContext = { config, logger, prisma, client, layout };
   const commands = await loadCommands<OpsContext>(COMMANDS_DIR);
   logger.info({ commands: [...commands.keys()] }, 'commands loaded');
 
@@ -53,22 +52,18 @@ async function main(): Promise<void> {
       );
       return;
     }
-    const steps: [string, () => Promise<unknown>][] = [
-      ['cache members', () => guild.members.fetch()],
-      ['load active tickets', () => loadActiveTicketChannels(ctx)],
-      [
-        'support panel',
-        () => ensurePanel(ctx, 'support', config.channels.support, buildSupportPanel()),
-      ],
-      ['role panel', () => ensurePanel(ctx, 'roles', config.channels.startHere, buildRolePanel())],
-      ['automod rules', () => ensureAutoModRules(guild, config, logger)],
-    ];
-    for (const [name, step] of steps) {
-      try {
-        await step();
-      } catch (error) {
-        logger.error({ err: error, step: name }, 'startup step failed');
-      }
+    try {
+      await guild.members.fetch();
+    } catch (error) {
+      logger.error({ err: error }, 'could not cache guild members');
+    }
+    if (ctx.layout.current) {
+      await runLayoutTasks(ctx, guild);
+    } else {
+      logger.warn(
+        { missing: ctx.layout.missing },
+        'server is not set up yet: an administrator should run /setup server',
+      );
     }
     logger.info('startup complete');
   });
@@ -112,6 +107,8 @@ async function main(): Promise<void> {
   process.on('SIGTERM', () => void shutdown('SIGTERM'));
 
   await prisma.$connect();
+  await layout.load(prisma);
+  logger.info({ ready: Boolean(layout.current), missing: layout.missing }, 'server layout loaded');
   await client.login(config.discord.token);
 }
 

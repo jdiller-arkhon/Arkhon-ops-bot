@@ -28,13 +28,14 @@ export async function announceRelease(ctx: OpsContext, release: Release): Promis
   }
 
   try {
-    const channel = await ctx.client.channels.fetch(ctx.config.channels.announcements);
+    const layout = ctx.layout.require();
+    const channel = await ctx.client.channels.fetch(layout.channels.announcements);
     if (!channel?.isSendable() || channel.isDMBased()) {
       throw new Error('ANNOUNCEMENTS_CHANNEL_ID is not a channel the bot can post in');
     }
     const label = productLabel(release.product);
     const version = displayVersion(release.version);
-    const roleId = ctx.config.roles.user[release.product];
+    const roleId = layout.roles.user[release.product];
     const embed = arkhonEmbed({
       product: release.product,
       title: `${label} ${version}${release.title ? ` — ${release.title}` : ''}${release.prerelease ? ' (pre-release)' : ''}`,

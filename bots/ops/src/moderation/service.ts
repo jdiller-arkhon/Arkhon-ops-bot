@@ -19,7 +19,7 @@ export function assertModeratable(
   if (target.user.bot) throw new UserFacingError('Bots cannot be moderated with this command.');
   if (target.id === target.guild.ownerId)
     throw new UserFacingError('The server owner cannot be moderated.');
-  if (isStaff(target, ctx.config))
+  if (isStaff(target, ctx.layout.require()))
     throw new UserFacingError('Staff members cannot be moderated with this command.');
   if (
     moderator.id !== moderator.guild.ownerId &&
@@ -63,7 +63,8 @@ export async function recordModAction(
       inline: true,
     });
   }
-  const modLog = await ctx.client.channels.fetch(ctx.config.channels.modLog).catch(() => null);
+  const modLogId = ctx.layout.require().channels.modLog;
+  const modLog = await ctx.client.channels.fetch(modLogId).catch(() => null);
   if (modLog?.isSendable()) {
     await modLog.send({
       embeds: [
@@ -76,7 +77,7 @@ export async function recordModAction(
       allowedMentions: { parse: [] },
     });
   } else {
-    ctx.logger.error({ channelId: ctx.config.channels.modLog }, 'mod-log channel unavailable');
+    ctx.logger.error({ channelId: modLogId }, 'mod-log channel unavailable');
   }
   ctx.logger.info(
     {

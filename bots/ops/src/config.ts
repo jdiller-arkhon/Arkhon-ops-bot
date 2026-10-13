@@ -5,9 +5,19 @@ import {
   productRepoMap,
   snowflake,
   type Env,
-  type Product,
 } from '@arkhon/shared';
 import { z } from 'zod';
+import type { ResourceKey } from './layout.js';
+
+function compact(
+  map: Partial<Record<ResourceKey, string | undefined>>,
+): Partial<Record<ResourceKey, string>> {
+  const out: Partial<Record<ResourceKey, string>> = {};
+  for (const [key, value] of Object.entries(map) as [ResourceKey, string | undefined][]) {
+    if (value) out[key] = value;
+  }
+  return out;
+}
 
 const optionalSnowflake = snowflake.optional();
 
@@ -15,21 +25,21 @@ export const opsEnvSchema = baseEnvSchema
   .extend({
     DATABASE_URL: z.string().min(1),
 
-    // Channels
-    SUPPORT_CHANNEL_ID: snowflake,
-    TICKET_ARCHIVE_CHANNEL_ID: snowflake,
-    START_HERE_CHANNEL_ID: snowflake,
-    MOD_LOG_CHANNEL_ID: snowflake,
-    ANNOUNCEMENTS_CHANNEL_ID: snowflake,
-    FEEDBACK_FORUM_CHANNEL_ID: snowflake,
-    CERTA_HOME_CHANNEL_ID: snowflake,
-    ARGUS_HOME_CHANNEL_ID: snowflake,
-
-    // Roles
-    CERTA_STAFF_ROLE_ID: snowflake,
-    ARGUS_STAFF_ROLE_ID: snowflake,
-    CERTA_USER_ROLE_ID: snowflake,
-    ARGUS_USER_ROLE_ID: snowflake,
+    // Channel and role ids are optional: /setup server creates them and stores the ids in the
+    // database. Set these only to point the bot at channels/roles you created by hand; an env
+    // value always wins over the stored one.
+    SUPPORT_CHANNEL_ID: optionalSnowflake,
+    TICKET_ARCHIVE_CHANNEL_ID: optionalSnowflake,
+    START_HERE_CHANNEL_ID: optionalSnowflake,
+    MOD_LOG_CHANNEL_ID: optionalSnowflake,
+    ANNOUNCEMENTS_CHANNEL_ID: optionalSnowflake,
+    FEEDBACK_FORUM_CHANNEL_ID: optionalSnowflake,
+    CERTA_HOME_CHANNEL_ID: optionalSnowflake,
+    ARGUS_HOME_CHANNEL_ID: optionalSnowflake,
+    CERTA_STAFF_ROLE_ID: optionalSnowflake,
+    ARGUS_STAFF_ROLE_ID: optionalSnowflake,
+    CERTA_USER_ROLE_ID: optionalSnowflake,
+    ARGUS_USER_ROLE_ID: optionalSnowflake,
 
     // Tickets
     TICKET_MODE: z.enum(['thread', 'channel']).default('thread'),
@@ -75,28 +85,20 @@ export const opsEnvSchema = baseEnvSchema
       clientId: env.DISCORD_CLIENT_ID,
       guildId: env.DISCORD_GUILD_ID,
     },
-    channels: {
-      support: env.SUPPORT_CHANNEL_ID,
-      ticketArchive: env.TICKET_ARCHIVE_CHANNEL_ID,
-      startHere: env.START_HERE_CHANNEL_ID,
-      modLog: env.MOD_LOG_CHANNEL_ID,
-      announcements: env.ANNOUNCEMENTS_CHANNEL_ID,
-      feedbackForum: env.FEEDBACK_FORUM_CHANNEL_ID,
-      home: { certa: env.CERTA_HOME_CHANNEL_ID, argus: env.ARGUS_HOME_CHANNEL_ID } satisfies Record<
-        Product,
-        string
-      >,
-    },
-    roles: {
-      staff: { certa: env.CERTA_STAFF_ROLE_ID, argus: env.ARGUS_STAFF_ROLE_ID } satisfies Record<
-        Product,
-        string
-      >,
-      user: { certa: env.CERTA_USER_ROLE_ID, argus: env.ARGUS_USER_ROLE_ID } satisfies Record<
-        Product,
-        string
-      >,
-    },
+    layoutOverrides: compact({
+      'channel.support': env.SUPPORT_CHANNEL_ID,
+      'channel.ticketArchive': env.TICKET_ARCHIVE_CHANNEL_ID,
+      'channel.startHere': env.START_HERE_CHANNEL_ID,
+      'channel.modLog': env.MOD_LOG_CHANNEL_ID,
+      'channel.announcements': env.ANNOUNCEMENTS_CHANNEL_ID,
+      'channel.feedback': env.FEEDBACK_FORUM_CHANNEL_ID,
+      'channel.certaGeneral': env.CERTA_HOME_CHANNEL_ID,
+      'channel.argusGeneral': env.ARGUS_HOME_CHANNEL_ID,
+      'role.certaStaff': env.CERTA_STAFF_ROLE_ID,
+      'role.argusStaff': env.ARGUS_STAFF_ROLE_ID,
+      'role.certaUser': env.CERTA_USER_ROLE_ID,
+      'role.argusUser': env.ARGUS_USER_ROLE_ID,
+    }),
     tickets: {
       mode: env.TICKET_MODE,
       categoryId: env.TICKET_CATEGORY_ID,

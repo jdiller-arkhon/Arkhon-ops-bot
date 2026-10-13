@@ -8,6 +8,7 @@ import {
   type Guild,
 } from 'discord.js';
 import type { OpsConfig } from '../config.js';
+import type { ServerLayout } from '../layout.js';
 import type { Logger } from '@arkhon/shared';
 
 export const RULE_NAMES = {
@@ -32,8 +33,12 @@ export interface DesiredRule {
 }
 
 /** The rules the bot maintains, derived from config. Pure so it can be inspected in tests. */
-export function desiredRules(config: OpsConfig): DesiredRule[] {
-  const staffRoles = Object.values(config.roles.staff);
+export function desiredRules(config: OpsConfig, layout: ServerLayout): DesiredRule[] {
+  const staffRoles = [
+    ...Object.values(layout.roles.staff),
+    ...(layout.roles.team ? [layout.roles.team] : []),
+    ...(layout.roles.moderator ? [layout.roles.moderator] : []),
+  ];
   const rules: DesiredRule[] = [
     {
       name: RULE_NAMES.mentionSpam,
@@ -73,6 +78,7 @@ function sameList(a: readonly string[] = [], b: readonly string[] = []): boolean
 export async function ensureAutoModRules(
   guild: Guild,
   config: OpsConfig,
+  layout: ServerLayout,
   logger: Logger,
 ): Promise<void> {
   const existing = await guild.autoModerationRules.fetch();
@@ -83,11 +89,11 @@ export async function ensureAutoModRules(
     },
     {
       type: AutoModerationActionType.SendAlertMessage,
-      metadata: { channel: config.channels.modLog },
+      metadata: { channel: layout.channels.modLog },
     },
   ];
 
-  for (const rule of desiredRules(config)) {
+  for (const rule of desiredRules(config, layout)) {
     try {
       await ensureRule(guild, existing, rule, actions, logger);
     } catch (error) {

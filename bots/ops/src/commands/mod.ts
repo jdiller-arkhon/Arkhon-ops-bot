@@ -16,7 +16,7 @@ import {
   modHistory,
   recordModAction,
 } from '../moderation/service.js';
-import { requireStaff } from '../permissions.js';
+import { requireModerator } from '../permissions.js';
 
 export const data = new SlashCommandBuilder()
   .setName('mod')
@@ -66,7 +66,7 @@ export async function execute(
   interaction: ChatInputCommandInteraction,
   ctx: OpsContext,
 ): Promise<void> {
-  const moderator = requireStaff(interaction, ctx.config);
+  const moderator = requireModerator(interaction, ctx);
   if (!moderator.permissions.has(PermissionFlagsBits.ModerateMembers)) {
     throw new UserFacingError('You need the Timeout Members permission to use /mod.');
   }

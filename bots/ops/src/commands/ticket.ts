@@ -31,7 +31,7 @@ export async function execute(
   interaction: ChatInputCommandInteraction,
   ctx: OpsContext,
 ): Promise<void> {
-  requireStaff(interaction, ctx.config);
+  requireStaff(interaction, ctx);
   const sub = interaction.options.getSubcommand();
   if (sub === 'stats') {
     await interaction.deferReply({ flags: MessageFlags.Ephemeral });

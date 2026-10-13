@@ -5,9 +5,10 @@ import { ChannelType } from 'discord.js';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { loadOpsConfig } from '../src/config.js';
 import type { OpsContext } from '../src/context.js';
+import { LayoutStore } from '../src/layout.js';
 import { createWebhookServer } from '../src/releases/server.js';
 import { signBody } from '../src/releases/signature.js';
-import { validOpsEnv } from './fixtures.js';
+import { fixtureLayout, validOpsEnv } from './fixtures.js';
 
 const config = loadOpsConfig({
   ...validOpsEnv,
@@ -37,7 +38,9 @@ function fakeContext() {
     send,
   };
   const client = { isReady: () => true, channels: { fetch: vi.fn().mockResolvedValue(channel) } };
+  const layout = fixtureLayout();
   const ctx = {
+    layout,
     config,
     logger: createLogger('test', { level: 'silent' }),
     prisma,
@@ -77,8 +80,12 @@ describe('release webhook server', () => {
     expect(res.status).toBe(201);
     expect(fake.send).toHaveBeenCalledOnce();
     const message = fake.send.mock.calls[0]?.[0];
-    expect(message.content).toBe(`<@&${config.roles.user.certa}> Certa v2.4.1 is out!`);
-    expect(message.allowedMentions).toEqual({ roles: [config.roles.user.certa] });
+    expect(message.content).toBe(
+      `<@&${fixtureLayout().require().roles.user.certa}> Certa v2.4.1 is out!`,
+    );
+    expect(message.allowedMentions).toEqual({
+      roles: [fixtureLayout().require().roles.user.certa],
+    });
     expect(message.embeds[0].toJSON().title).toBe('Certa v2.4.1');
   });
 
@@ -127,7 +134,7 @@ describe('release webhook server', () => {
     });
     expect(res.status).toBe(201);
     expect(fake.send.mock.calls[0]?.[0].content).toBe(
-      `<@&${config.roles.user.argus}> Argus v3.0.0 is out!`,
+      `<@&${fixtureLayout().require().roles.user.argus}> Argus v3.0.0 is out!`,
     );
   });
 
@@ -150,6 +157,18 @@ describe('release webhook server', () => {
         })
       ).status,
     ).toBe(202);
+  });
+
+  it('returns 503 before the server has been set up', async () => {
+    const store = new LayoutStore();
+    store.apply({});
+    (fake.ctx as { layout: LayoutStore }).layout = store;
+    const body = JSON.stringify({ product: 'certa', version: '9.9.9', notes: 'x' });
+    const res = await post('/webhooks/release', body, {
+      'x-arkhon-signature': signBody(body, config.webhooks.releaseSecret),
+    });
+    expect(res.status).toBe(503);
+    expect(fake.send).not.toHaveBeenCalled();
   });
 
   it('serves health and 404s', async () => {

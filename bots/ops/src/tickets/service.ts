@@ -87,6 +87,7 @@ export async function showTicketModal(
   ctx: OpsContext,
 ): Promise<void> {
   requireGuildMember(interaction, ctx.config);
+  ctx.layout.require();
   const existing = await findOpenTicket(ctx, interaction.user.id, product);
   if (existing?.channelId) {
     throw new UserFacingError(
@@ -102,6 +103,7 @@ export async function createTicketFromModal(
   ctx: OpsContext,
 ): Promise<void> {
   const member = requireGuildMember(interaction, ctx.config);
+  const layout = ctx.layout.require();
   await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
   const existing = await findOpenTicket(ctx, member.id, product);
@@ -141,7 +143,7 @@ export async function createTicketFromModal(
   });
   activeTicketChannels.add(channel.id);
 
-  const staffRoleId = ctx.config.roles.staff[product];
+  const staffRoleId = layout.roles.staff[product];
   const embed = arkhonEmbed({
     product,
     title: `Ticket #${ticket.id}: ${subject}`,
@@ -200,7 +202,8 @@ async function createPrivateThread(
   name: string,
   product: Product,
 ): Promise<GuildTextBasedChannel> {
-  const support = await guild.channels.fetch(ctx.config.channels.support);
+  const layout = ctx.layout.require();
+  const support = await guild.channels.fetch(layout.channels.support);
   if (!support || support.type !== ChannelType.GuildText) {
     throw new Error('SUPPORT_CHANNEL_ID must be a text channel to host private threads');
   }
@@ -228,7 +231,7 @@ async function createPrivateThread(
 
   // Private threads cannot be shared with a role directly. The opening message @mentions the
   // staff role (which adds its members), and cached staff members are added explicitly as well.
-  const staffRole = guild.roles.cache.get(ctx.config.roles.staff[product]);
+  const staffRole = guild.roles.cache.get(layout.roles.staff[product]);
   const staff = staffRole ? [...staffRole.members.values()].filter((m) => !m.user.bot) : [];
   for (const staffMember of staff.slice(0, MAX_STAFF_THREAD_ADDS)) {
     await thread.members.add(staffMember.id).catch((error: unknown) => {
@@ -248,6 +251,7 @@ async function createPrivateChannel(
   name: string,
   product: Product,
 ): Promise<GuildTextBasedChannel> {
+  const layout = ctx.layout.require();
   const me = guild.members.me;
   if (!me) throw new Error('Bot member is not cached');
   const participant = [
@@ -271,7 +275,7 @@ async function createPrivateChannel(
       },
       { id: member.id, type: OverwriteType.Member, allow: participant },
       {
-        id: ctx.config.roles.staff[product],
+        id: layout.roles.staff[product],
         type: OverwriteType.Role,
         allow: [...participant, PermissionFlagsBits.ManageMessages],
       },
@@ -297,7 +301,7 @@ export async function handleStaffAction(
   const ticket = await ctx.prisma.opsTicket.findUnique({ where: { id: ticketId } });
   if (!ticket) throw new UserFacingError(`Ticket #${ticketId} no longer exists.`);
   const product = ticketProduct(ticket);
-  const staff = requireStaff(interaction, ctx.config, product);
+  const staff = requireStaff(interaction, ctx, product);
   const from = ticketStatus(ticket);
 
   let to: TicketStatus;
@@ -343,6 +347,7 @@ async function closeTicket(
   ctx: OpsContext,
 ): Promise<void> {
   await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+  const layout = ctx.layout.require();
   const product = ticketProduct(ticket);
   const closedAt = new Date();
   const result = await ctx.prisma.opsTicket.updateMany({
@@ -402,7 +407,7 @@ async function closeTicket(
     }
   }
 
-  const archive = await ctx.client.channels.fetch(ctx.config.channels.ticketArchive);
+  const archive = await ctx.client.channels.fetch(layout.channels.ticketArchive);
   if (archive?.isSendable()) {
     await archive.send({
       embeds: [
@@ -432,7 +437,7 @@ async function closeTicket(
     });
   } else {
     ctx.logger.error(
-      { channelId: ctx.config.channels.ticketArchive },
+      { channelId: layout.channels.ticketArchive },
       'ticket archive channel unavailable',
     );
   }
@@ -442,7 +447,7 @@ async function closeTicket(
     'ticket closed',
   );
   await interaction.editReply(
-    `Ticket closed. Transcript ${dmDelivered ? 'sent to the user and ' : ''}posted to <#${ctx.config.channels.ticketArchive}>.`,
+    `Ticket closed. Transcript ${dmDelivered ? 'sent to the user and ' : ''}posted to <#${layout.channels.ticketArchive}>.`,
   );
   await channel.send({ content: `🔒 Ticket closed by ${staff}.`, allowedMentions: { parse: [] } });
 
@@ -489,6 +494,8 @@ async function fetchTranscriptMessages(
 export async function onTicketMessage(message: Message, ctx: OpsContext): Promise<void> {
   if (message.author.bot || !message.inGuild() || !activeTicketChannels.has(message.channelId))
     return;
+  const layout = ctx.layout.current;
+  if (!layout) return;
 
   const ticket = await ctx.prisma.opsTicket.findUnique({ where: { channelId: message.channelId } });
   if (!ticket || ticket.status === 'closed') return;
@@ -512,7 +519,7 @@ export async function onTicketMessage(message: Message, ctx: OpsContext): Promis
   if (ticket.firstStaffReplyAt) return;
   const member =
     message.member ?? (await message.guild.members.fetch(message.author.id).catch(() => null));
-  if (member && isStaff(member, ctx.config, product)) {
+  if (member && isStaff(member, layout, product)) {
     await ctx.prisma.opsTicket.updateMany({
       where: { id: ticket.id, firstStaffReplyAt: null },
       data: { firstStaffReplyAt: message.createdAt },

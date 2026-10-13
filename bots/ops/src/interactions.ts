@@ -3,6 +3,7 @@ import type { Interaction } from 'discord.js';
 import type { OpsContext } from './context.js';
 import { parseCustomId } from './ids.js';
 import { handleRoleButton, isRoleChoice } from './onboarding/roles.js';
+import { handleSetupButton } from './setup/session.js';
 import {
   createTicketFromModal,
   handleStaffAction,
@@ -39,6 +40,9 @@ export function createInteractionHandler(ctx: OpsContext, commands: CommandRegis
         const staffAction = STAFF_ACTIONS[action];
         if (feature === 'ticket' && staffAction && arg && /^\d+$/.test(arg)) {
           return handleStaffAction(interaction, staffAction, Number(arg), ctx);
+        }
+        if (feature === 'setup' && arg) {
+          return handleSetupButton(interaction, action, arg, ctx);
         }
         if (feature === 'role' && isRoleChoice(action)) {
           return handleRoleButton(interaction, action, ctx);

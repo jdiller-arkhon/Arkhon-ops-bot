@@ -1,13 +1,15 @@
 import { arkhonEmbed } from '@arkhon/shared';
 import type { GuildMember } from 'discord.js';
 import type { OpsContext } from '../context.js';
+import type { ServerLayout } from '../layout.js';
 
 function channelLink(guildId: string, channelId: string): string {
   return `https://discord.com/channels/${guildId}/${channelId}`;
 }
 
-export function buildWelcomeEmbed(member: GuildMember, ctx: OpsContext) {
-  const { guildId, channels } = { guildId: member.guild.id, channels: ctx.config.channels };
+export function buildWelcomeEmbed(member: GuildMember, layout: ServerLayout) {
+  const guildId = member.guild.id;
+  const channels = layout.channels;
   return arkhonEmbed({
     title: `Welcome to ${member.guild.name}`,
     description: [
@@ -24,9 +26,10 @@ export function buildWelcomeEmbed(member: GuildMember, ctx: OpsContext) {
 }
 
 export async function sendWelcomeDm(member: GuildMember, ctx: OpsContext): Promise<void> {
-  if (member.user.bot || member.guild.id !== ctx.config.discord.guildId) return;
+  const layout = ctx.layout.current;
+  if (!layout || member.user.bot || member.guild.id !== ctx.config.discord.guildId) return;
   try {
-    await member.send({ embeds: [buildWelcomeEmbed(member, ctx)] });
+    await member.send({ embeds: [buildWelcomeEmbed(member, layout)] });
     ctx.logger.info({ userId: member.id }, 'welcome DM sent');
   } catch (error) {
     // Users with DMs disabled are common; this is not an error.

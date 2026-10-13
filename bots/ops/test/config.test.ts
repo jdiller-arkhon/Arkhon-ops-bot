@@ -17,11 +17,8 @@ describe('ops config', () => {
   it('builds a structured config with defaults', () => {
     const config = loadOpsConfig(validOpsEnv);
     expect(config.discord.guildId).toBe('100000000000000002');
-    expect(config.roles.staff).toEqual({
-      certa: '300000000000000001',
-      argus: '300000000000000002',
-    });
-    expect(config.channels.home.argus).toBe('200000000000000008');
+    expect(config.layoutOverrides['role.certaStaff']).toBe('300000000000000001');
+    expect(config.layoutOverrides['channel.argusGeneral']).toBe('200000000000000008');
     expect(config.tickets).toEqual({ mode: 'thread', categoryId: undefined });
     expect(config.automod).toEqual({ mentionLimit: 5, keywords: [] });
     expect(config.webhooks.port).toBe(3000);
@@ -52,12 +49,29 @@ describe('ops config', () => {
     });
   });
 
-  it('fails fast listing each missing channel and role', () => {
-    const { SUPPORT_CHANNEL_ID: _s, ARGUS_STAFF_ROLE_ID: _a, ...env } = validOpsEnv;
+  it('runs without any channel or role ids (they come from /setup server)', () => {
+    const minimal = {
+      DISCORD_TOKEN: validOpsEnv.DISCORD_TOKEN,
+      DISCORD_CLIENT_ID: validOpsEnv.DISCORD_CLIENT_ID,
+      DISCORD_GUILD_ID: validOpsEnv.DISCORD_GUILD_ID,
+      DATABASE_URL: validOpsEnv.DATABASE_URL,
+      RELEASE_WEBHOOK_SECRET: validOpsEnv.RELEASE_WEBHOOK_SECRET,
+    };
+    expect(loadOpsConfig(minimal).layoutOverrides).toEqual({});
+  });
+
+  it('fails fast listing each missing required variable', () => {
+    const { DISCORD_GUILD_ID: _g, RELEASE_WEBHOOK_SECRET: _r, ...env } = validOpsEnv;
     expect(issuesFor(env)).toEqual([
-      'SUPPORT_CHANNEL_ID: is required but not set',
-      'ARGUS_STAFF_ROLE_ID: is required but not set',
+      'DISCORD_GUILD_ID: is required but not set',
+      'RELEASE_WEBHOOK_SECRET: is required but not set',
     ]);
+  });
+
+  it('still validates channel and role overrides when they are set', () => {
+    expect(issuesFor({ ...validOpsEnv, SUPPORT_CHANNEL_ID: '#support' })[0]).toMatch(
+      /^SUPPORT_CHANNEL_ID: must be a Discord ID/,
+    );
   });
 
   it('requires a long enough release webhook secret', () => {

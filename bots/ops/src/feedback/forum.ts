@@ -61,7 +61,8 @@ export async function onFeedbackThreadCreate(
   newlyCreated: boolean,
   ctx: OpsContext,
 ) {
-  if (!newlyCreated || !isFeedbackThread(thread, ctx.config.channels.feedbackForum)) return;
+  const layout = ctx.layout.current;
+  if (!layout || !newlyCreated || !isFeedbackThread(thread, layout.channels.feedbackForum)) return;
   const forum = await forumParent(thread);
   if (!forum) return;
   if (productFromTags(thread.appliedTags, forum.availableTags)) return;
@@ -81,18 +82,20 @@ export async function onFeedbackReaction(
   ctx: OpsContext,
 ): Promise<void> {
   const { config, logger } = ctx;
+  const layout = ctx.layout.current;
+  if (!layout) return;
   if (!emojiMatches(reactionInput.emoji, config.feedback.promoteEmoji)) return;
   if (userInput.bot) return;
 
   const reaction = reactionInput.partial ? await reactionInput.fetch() : reactionInput;
   const message = reaction.message.partial ? await reaction.message.fetch() : reaction.message;
   const thread = message.channel;
-  if (!isFeedbackThread(thread, config.channels.feedbackForum)) return;
+  if (!isFeedbackThread(thread, layout.channels.feedbackForum)) return;
   // Only the starter message (its id equals the thread id) represents the post.
   if (message.id !== thread.id) return;
 
   const member = await thread.guild.members.fetch(userInput.id).catch(() => null);
-  if (!member || !isStaff(member, config)) return;
+  if (!member || !isStaff(member, layout)) return;
 
   const forum = await forumParent(thread);
   const product = forum ? productFromTags(thread.appliedTags, forum.availableTags) : undefined;
@@ -102,7 +105,7 @@ export async function onFeedbackReaction(
     );
     return;
   }
-  if (!isStaff(member, config, product)) return;
+  if (!isStaff(member, layout, product)) return;
 
   const repo = config.feedback.repos[product];
   const token = config.feedback.githubToken;

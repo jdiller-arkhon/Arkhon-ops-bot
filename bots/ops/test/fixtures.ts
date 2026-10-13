@@ -1,4 +1,7 @@
-/** A complete, valid ops bot environment for tests. */
+import { loadOpsConfig } from '../src/config.js';
+import { LayoutStore } from '../src/layout.js';
+
+/** A complete, valid ops bot environment for tests (channel/role ids set as env overrides). */
 export const validOpsEnv: Record<string, string> = {
   DISCORD_TOKEN: 'x'.repeat(72),
   DISCORD_CLIENT_ID: '100000000000000001',
@@ -18,3 +21,10 @@ export const validOpsEnv: Record<string, string> = {
   ARGUS_USER_ROLE_ID: '300000000000000004',
   RELEASE_WEBHOOK_SECRET: 'release-secret-0123456789',
 };
+
+/** A LayoutStore resolved from the fixture env overrides. */
+export function fixtureLayout(env: Record<string, string> = validOpsEnv): LayoutStore {
+  const store = new LayoutStore(loadOpsConfig(env).layoutOverrides);
+  store.apply({});
+  return store;
+}

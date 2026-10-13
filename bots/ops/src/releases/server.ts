@@ -109,6 +109,8 @@ export function createWebhookServer(ctx: OpsContext): Server {
     }
 
     if (!ctx.client.isReady()) throw new HttpError(503, 'bot is not connected to Discord yet');
+    if (!ctx.layout.current)
+      throw new HttpError(503, 'server is not set up yet (run /setup server)');
     const result = await announceRelease(ctx, release);
     send(res, result.status === 'posted' ? 201 : 200, { ok: true, ...result });
   }

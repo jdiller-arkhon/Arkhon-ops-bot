@@ -49,6 +49,17 @@ model OpsPanel {
   @@map("ops_panels")
 }
 
+// Discord resources created or adopted by /setup server, keyed by blueprint key
+// ("role.certaStaff", "category.support", "channel.support", ...).
+model OpsServerResource {
+  key       String   @id
+  kind      String // "role" | "category" | "channel"
+  discordId String
+  updatedAt DateTime @updatedAt
+
+  @@map("ops_server_resources")
+}
+
 model OpsModAction {
   id              Int      @id @default(autoincrement())
   guildId         String

@@ -56,7 +56,8 @@ export async function handleRoleButton(
   ctx: OpsContext,
 ): Promise<void> {
   const member = requireGuildMember(interaction, ctx.config);
-  const roles = ctx.config.roles.user;
+  const layout = ctx.layout.require();
+  const roles = layout.roles.user;
   await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
   const me = member.guild.members.me;
@@ -82,7 +83,7 @@ export async function handleRoleButton(
       message = `Removed **${label} User**. The ${label} channels are hidden again.`;
     } else {
       await member.roles.add(roleId, reason);
-      message = `You now have **${label} User**. Check out <#${ctx.config.channels.home[choice]}>.`;
+      message = `You now have **${label} User**. Check out <#${layout.channels.home[choice]}>.`;
     }
   }
   ctx.logger.info({ userId: member.id, choice }, 'role panel used');

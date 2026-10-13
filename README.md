@@ -16,6 +16,10 @@ PostgreSQL 15 in prod), Vitest, ESLint + Prettier, pino, Docker.
 
 ## Ops Bot features
 
+- **Server buildout.** `/setup server` builds the entire server from a blueprint: branded roles,
+  categories, channels with topics and permissions, a tagged feedback forum, server security
+  settings, Community, native Onboarding, and posted welcome and rules messages. It previews first
+  and is safe to re-run.
 - **Support tickets.** A panel in `#support` with **Certa Support** / **Argus Support** buttons opens a
   modal (subject, description, optional app version) and creates a private thread for the user and
   the matching staff role. If private threads are unavailable it falls back to a private channel.
@@ -47,46 +51,81 @@ PostgreSQL 15 in prod), Vitest, ESLint + Prettier, pino, Docker.
    The bot connects with these gateway intents: `Guilds`, `GuildMembers`, `GuildMessages`,
    `MessageContent`, `GuildMessageReactions` (feedback promotion reactions).
 
-5. **Installation / OAuth2 → URL Generator:** scopes `bot` and `applications.commands`, with these
-   bot permissions: View Channels, Send Messages, Send Messages in Threads, Create Private Threads,
-   Manage Threads, Manage Channels, Manage Roles, Moderate Members, Manage Server (AutoMod),
-   Embed Links, Attach Files, Read Message History, Add Reactions, Mention Everyone (role pings).
-   Or use this URL with your client id:
+5. **Invite the bot** with scopes `bot` and `applications.commands`. For the one-time server
+   buildout the bot needs **Administrator** (it creates roles, sets channel permissions, enables
+   Community and configures Onboarding):
 
    ```
-   https://discord.com/oauth2/authorize?client_id=YOUR_CLIENT_ID&scope=bot%20applications.commands&permissions=1460557565040
+   https://discord.com/oauth2/authorize?client_id=YOUR_CLIENT_ID&scope=bot%20applications.commands&permissions=8
    ```
 
-6. Open the URL, pick the Arkhon server, and authorize.
-7. In **Server Settings → Roles**, drag the bot's role **above** `Certa User` and `Argus User` so it
-   can assign them, and above regular members so it can time them out.
+   After the build you can switch to least privilege: remove Administrator from the bot's role and
+   grant View Channels, Send Messages, Send Messages in Threads, Create Private Threads, Manage
+   Threads, Manage Channels, Manage Roles, Manage Messages, Moderate Members, Manage Server
+   (AutoMod), Embed Links, Attach Files, Read Message History, Add Reactions and Mention Everyone.
+   `/setup status` tells you if anything is missing.
 
-## 2. Prepare the server
+6. In **Server Settings → Roles**, drag the bot's role to the **top** of the list. It can only
+   create and manage roles below its own.
 
-Create the channels and roles listed in `.env.example` and copy their IDs (enable Developer Mode,
-then right-click → **Copy ID**). Channel permission setup is documented in
-[`CLAUDE.md`](./CLAUDE.md#discord-server-permission-setup).
-
-## 3. Environment variables
+## 2. Environment variables
 
 ```bash
 cp .env.example .env
 ```
 
-Fill in every value. The bot validates the environment at startup and exits with a list of every
-missing or invalid variable. Key groups:
+Only these are required: `DISCORD_TOKEN`, `DISCORD_CLIENT_ID`, `DISCORD_GUILD_ID`,
+`DATABASE_URL`, `RELEASE_WEBHOOK_SECRET`. The bot validates the environment at startup and exits
+with a list of every missing or invalid variable.
 
-| Variables                                                         | Purpose                                                                                                                                              |
-| ----------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `DISCORD_TOKEN`, `DISCORD_CLIENT_ID`, `DISCORD_GUILD_ID`          | Bot identity and the one server it serves                                                                                                            |
-| `DATABASE_URL`                                                    | `file:./dev.db` for SQLite, or a `postgresql://` URL                                                                                                 |
-| `*_CHANNEL_ID`                                                    | `#support`, `#ticket-archive`, `#start-here`, `#mod-log`, `#announcements`, `#feedback`, plus one channel in each product category for welcome links |
-| `*_ROLE_ID`                                                       | `Certa Staff`, `Argus Staff`, `Certa User`, `Argus User`                                                                                             |
-| `TICKET_MODE`, `TICKET_CATEGORY_ID`                               | Private threads (default) or private channels                                                                                                        |
-| `AUTOMOD_MENTION_LIMIT`, `AUTOMOD_KEYWORDS`                       | AutoMod rule settings                                                                                                                                |
-| `WEBHOOK_PORT`, `RELEASE_WEBHOOK_SECRET`                          | Release webhook server                                                                                                                               |
-| `GITHUB_WEBHOOK_SECRET`, `GITHUB_RELEASE_REPOS`                   | Optional: GitHub Releases webhooks (`certa=owner/repo,argus=owner/repo`)                                                                             |
-| `GITHUB_TOKEN`, `GITHUB_FEEDBACK_REPOS`, `FEEDBACK_PROMOTE_EMOJI` | Optional: feedback → GitHub Issues                                                                                                                   |
+| Variables                                                         | Purpose                                                                                                            |
+| ----------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| `DISCORD_TOKEN`, `DISCORD_CLIENT_ID`, `DISCORD_GUILD_ID`          | Bot identity and the one server it serves                                                                          |
+| `DATABASE_URL`                                                    | `file:./dev.db` for SQLite, or a `postgresql://` URL                                                               |
+| `WEBHOOK_PORT`, `RELEASE_WEBHOOK_SECRET`                          | Release webhook server                                                                                             |
+| `*_CHANNEL_ID`, `*_ROLE_ID`                                       | Optional overrides. `/setup server` creates these and stores the ids; set one only to use your own channel or role |
+| `TICKET_MODE`, `TICKET_CATEGORY_ID`                               | Private threads (default) or private channels                                                                      |
+| `AUTOMOD_MENTION_LIMIT`, `AUTOMOD_KEYWORDS`                       | AutoMod rule settings                                                                                              |
+| `GITHUB_WEBHOOK_SECRET`, `GITHUB_RELEASE_REPOS`                   | Optional: GitHub Releases webhooks (`certa=owner/repo,argus=owner/repo`)                                           |
+| `GITHUB_TOKEN`, `GITHUB_FEEDBACK_REPOS`, `FEEDBACK_PROMOTE_EMOJI` | Optional: feedback → GitHub Issues                                                                                 |
+
+## 3. Build the server: `/setup server`
+
+Start the bot (section 4 or 5), deploy commands, then in Discord run **`/setup server`** as a server
+administrator. You get a private preview of exactly what will be created or updated; nothing
+changes until you press **Build server**. Progress updates live, and a report lists everything that
+was created, updated or skipped.
+
+What it builds (defined in `bots/ops/src/setup/blueprint.ts`):
+
+| Category              | Channels                                                                                                                   | Who can see it                      |
+| --------------------- | -------------------------------------------------------------------------------------------------------------------------- | ----------------------------------- |
+| **ARKHON INDUSTRIES** | 👋 welcome · 📜 rules · 🚀 start-here · 📣 announcements                                                                   | Everyone, read-only                 |
+| **COMMUNITY**         | 💬 general · 🙋 introductions · 📸 showcase · 📰 industry-news · 💡 feedback (forum) · 🔊 Lounge · 🎙️ Office Hours (stage) | Everyone                            |
+| **SUPPORT**           | 🎫 support (ticket panel; private ticket threads)                                                                          | Everyone; tickets are private       |
+| **CERTA**             | 🛩️ certa-general · 🧭 certa-help · 📋 certa-compliance                                                                     | Certa User, Certa Staff, team, mods |
+| **ARGUS**             | 👁️ argus-general · 🧭 argus-help                                                                                           | Argus User, Argus Staff, team, mods |
+| **STAFF**             | 🛡️ staff-lounge · 🗂️ ticket-archive · 🔨 mod-log · 🔒 Staff Room                                                           | Staff roles only                    |
+
+- **Roles**, branded and ordered: Arkhon Team, Moderator, Certa Staff, Argus Staff, Certa User,
+  Argus User, with colors and permissions per role.
+- **Server settings**: Medium verification, explicit-content filter for all members, mentions-only
+  notifications, a curated @everyone permission set, and join messages off (members get a DM).
+- **Community** mode, so announcements can be followed, the feedback forum requires a product tag,
+  and Office Hours is a stage.
+- **Native Onboarding**: "Which Arkhon products do you use?" grants Certa User / Argus User.
+- **Content**: a welcome guide in #welcome, the server rules in #rules, the role panel, the ticket
+  panel and AutoMod rules.
+
+Options (all on by default): `server-settings`, `community`, `onboarding`.
+
+Running it again is safe. Resources are matched by the id stored from the previous run, then by
+name, and updated to match the blueprint. Nothing outside the blueprint is touched. Re-running
+resets permissions, topics and names on blueprint channels and roles, and replaces the
+Onboarding question it manages. To change the server permanently, edit the blueprint.
+
+`/setup status` shows every channel and role the bot uses, whether it still exists, whether it
+comes from an env override, and any missing bot permissions.
 
 ## 4. Run locally
 
@@ -97,6 +136,7 @@ pnpm install            # also generates the Prisma client
 pnpm db:push            # create the SQLite schema (DATABASE_URL=file:./dev.db)
 pnpm deploy:commands    # register slash commands to DISCORD_GUILD_ID (instant)
 pnpm dev:ops            # run with reload and pretty logs
+# then run /setup server in Discord
 ```
 
 Other scripts:

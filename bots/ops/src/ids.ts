@@ -13,6 +13,8 @@ export const ids = {
   ticketWaiting: (ticketId: number) => `ops:ticket:waiting:${ticketId}`,
   ticketClose: (ticketId: number) => `ops:ticket:close:${ticketId}`,
   role: (choice: 'certa' | 'argus' | 'both') => `ops:role:${choice}`,
+  setupConfirm: (token: string) => `ops:setup:confirm:${token}`,
+  setupCancel: (token: string) => `ops:setup:cancel:${token}`,
 } as const;
 
 export interface ParsedCustomId {
