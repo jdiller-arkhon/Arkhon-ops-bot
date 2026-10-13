@@ -1,4 +1,5 @@
 import { ChannelType } from 'discord.js';
+import { foldStyledName } from './fonts.js';
 import { allChannels, BLUEPRINT, type Blueprint, type ChannelKind } from './blueprint.js';
 
 /** What exists in the guild right now, reduced to what the planner needs. */
@@ -27,9 +28,12 @@ export interface BuildPlan {
   community: boolean;
 }
 
-/** Discord normalizes channel names (lowercase, dashes); compare loosely so renamed copies match. */
+/**
+ * Discord normalizes channel names (lowercase, dashes); compare loosely so renamed copies match.
+ * Small-caps lettering is folded to ASCII, so switching CHANNEL_NAME_STYLE still matches by name.
+ */
 export function normalizeName(name: string): string {
-  return name
+  return foldStyledName(name)
     .normalize('NFKC')
     .replace(/️/g, '')
     .toLowerCase()

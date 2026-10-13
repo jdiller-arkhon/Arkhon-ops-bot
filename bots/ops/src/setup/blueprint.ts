@@ -1,4 +1,12 @@
 import type { PermissionsString } from 'discord.js';
+import { styleName, type ChannelNameStyle } from './fonts.js';
+
+/**
+ * Lettering for channel names (categories stay as written). "smallCaps" renders
+ * "👋・welcome" as "👋・ᴡᴇʟᴄᴏᴍᴇ"; set to "plain" for normal text. Changing it and re-running
+ * /setup server renames the existing channels in place.
+ */
+export const CHANNEL_NAME_STYLE: ChannelNameStyle = 'smallCaps';
 
 /**
  * The Arkhon server blueprint: every role, category and channel /setup server builds.
@@ -126,7 +134,7 @@ function privateTo(...roles: RoleKey[]): OverwriteSpec[] {
 
 // ---------------------------------------------------------------- the blueprint
 
-export const BLUEPRINT: Blueprint = {
+const BASE_BLUEPRINT: Blueprint = {
   roles: [
     {
       key: 'team',
@@ -498,6 +506,22 @@ export const BLUEPRINT: Blueprint = {
     ],
   },
 };
+
+/** Applies a lettering style to every channel name. */
+export function withChannelNameStyle(blueprint: Blueprint, style: ChannelNameStyle): Blueprint {
+  return {
+    ...blueprint,
+    categories: blueprint.categories.map((category) => ({
+      ...category,
+      channels: category.channels.map((channel) => ({
+        ...channel,
+        name: styleName(channel.name, style),
+      })),
+    })),
+  };
+}
+
+export const BLUEPRINT: Blueprint = withChannelNameStyle(BASE_BLUEPRINT, CHANNEL_NAME_STYLE);
 
 // ---------------------------------------------------------------- helpers
 

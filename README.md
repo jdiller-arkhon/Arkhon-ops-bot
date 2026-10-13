@@ -107,6 +107,9 @@ What it builds (defined in `bots/ops/src/setup/blueprint.ts`):
 | **ARGUS**             | 👁️ argus-general · 🧭 argus-help                                                                                           | Argus User, Argus Staff, team, mods |
 | **STAFF**             | 🛡️ staff-lounge · 🗂️ ticket-archive · 🔨 mod-log · 🔒 Staff Room                                                           | Staff roles only                    |
 
+- **Lettering**: channel names use subtle small caps (`👋・ᴡᴇʟᴄᴏᴍᴇ`). Discord has no custom
+  fonts, so these are Unicode look-alike letters. Set `CHANNEL_NAME_STYLE = 'plain'` in the
+  blueprint and re-run to switch back; existing channels are renamed in place.
 - **Roles**, branded and ordered: Arkhon Team, Moderator, Certa Staff, Argus Staff, Certa User,
   Argus User, with colors and permissions per role.
 - **Server settings**: Medium verification, explicit-content filter for all members, mentions-only

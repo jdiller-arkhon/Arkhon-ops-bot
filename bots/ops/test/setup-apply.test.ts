@@ -14,7 +14,11 @@ import { LayoutStore } from '../src/layout.js';
 import { executeBuildout, snapshotGuild, type BuildOptions } from '../src/setup/apply.js';
 import { allChannels, BLUEPRINT } from '../src/setup/blueprint.js';
 import { planBuildout } from '../src/setup/plan.js';
+import { styleName } from '../src/setup/fonts.js';
+import { CHANNEL_NAME_STYLE } from '../src/setup/blueprint.js';
 import { validOpsEnv } from './fixtures.js';
+
+const styled = (name: string) => styleName(name, CHANNEL_NAME_STYLE);
 
 vi.mock('../src/startup.js', () => ({ runLayoutTasks: vi.fn(async () => []) }));
 
@@ -167,16 +171,16 @@ describe('executeBuildout (in-memory guild)', () => {
     expect(fake.raw.features).toContain(GuildFeature.Community);
 
     const byName = (name: string) => [...fake.channels.values()].find((c) => c.name === name);
-    expect(byName('📣・announcements')?.type).toBe(ChannelType.GuildAnnouncement);
-    expect(byName('🎙️ Office Hours')?.type).toBe(ChannelType.GuildStageVoice);
-    const forum = byName('💡・feedback');
+    expect(byName(styled('📣・announcements'))?.type).toBe(ChannelType.GuildAnnouncement);
+    expect(byName(styled('🎙️ Office Hours'))?.type).toBe(ChannelType.GuildStageVoice);
+    const forum = byName(styled('💡・feedback'));
     expect(forum?.type).toBe(ChannelType.GuildForum);
     expect(forum?.flags.has('RequireTag')).toBe(true);
     expect(forum?.availableTags.map((t) => t.name)).toEqual(
       expect.arrayContaining(['Certa', 'Argus']),
     );
     const supportCategory = [...fake.channels.values()].find((c) => c.name === 'SUPPORT');
-    expect(byName('🎫・support')?.parentId).toBe(supportCategory?.id);
+    expect(byName(styled('🎫・support'))?.parentId).toBe(supportCategory?.id);
 
     expect(fake.calls.everyonePerms).toBe(1);
     expect(fake.calls.onboarding).toHaveLength(1);
@@ -207,9 +211,14 @@ describe('executeBuildout (in-memory guild)', () => {
     const report = await build(fake, ctx);
     expect(report.warnings.some((w) => w.startsWith('Community'))).toBe(true);
     expect(report.skipped).toEqual(
-      expect.arrayContaining(['🎙️ Office Hours (needs Community)', 'Onboarding (needs Community)']),
+      expect.arrayContaining([
+        `${styled('🎙️ Office Hours')} (needs Community)`,
+        'Onboarding (needs Community)',
+      ]),
     );
-    const announcements = [...fake.channels.values()].find((c) => c.name === '📣・announcements');
+    const announcements = [...fake.channels.values()].find(
+      (c) => c.name === styled('📣・announcements'),
+    );
     expect(announcements?.type).toBe(ChannelType.GuildText);
     expect(ctx.layout.current).toBeDefined(); // features still work without Community
   });
