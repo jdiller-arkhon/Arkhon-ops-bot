@@ -249,7 +249,10 @@ export async function executeBuildout(
   for (const category of blueprint.categories) {
     const catItem = item(`category.${category.key}`);
     await attempt(`Category ${category.name}`, async () => {
-      const permissionOverwrites = resolveOverwrites(category.overwrites, overwriteIds());
+      const permissionOverwrites = resolveOverwrites(
+        mergeOverwrites(category.overwrites),
+        overwriteIds(),
+      );
       const result = catItem.existingId
         ? await guild.channels.edit(catItem.existingId, {
             name: category.name,

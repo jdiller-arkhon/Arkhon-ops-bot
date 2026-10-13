@@ -9,6 +9,7 @@ import {
   mergeOverwrites,
 } from '../src/setup/blueprint.js';
 import { RULES } from '../src/setup/content.js';
+import { resolveOverwrites } from '../src/setup/apply.js';
 
 const roleKeys = new Set(BLUEPRINT.roles.map((r) => r.key));
 const channelKeys = allChannels().map((c) => c.key);
@@ -110,6 +111,29 @@ describe('blueprint integrity', () => {
   it('ships non-empty rules', () => {
     expect(RULES.length).toBeGreaterThanOrEqual(5);
     for (const rule of RULES) expect(rule.body.length).toBeGreaterThan(10);
+  });
+});
+
+describe('resolved overwrites', () => {
+  it('never send two overwrites for the same role or member', () => {
+    const ids = {
+      guildId: 'g',
+      botId: 'b',
+      roles: Object.fromEntries(BLUEPRINT.roles.map((r) => [r.key, `role-${r.key}`])),
+    };
+    for (const category of BLUEPRINT.categories) {
+      const catIds = resolveOverwrites(mergeOverwrites(category.overwrites), ids).map((o) =>
+        String(o.id),
+      );
+      expect(new Set(catIds).size, category.name).toBe(catIds.length);
+      for (const channel of category.channels) {
+        const chIds = resolveOverwrites(
+          mergeOverwrites(category.overwrites, channel.overwrites),
+          ids,
+        ).map((o) => String(o.id));
+        expect(new Set(chIds).size, channel.name).toBe(chIds.length);
+      }
+    }
   });
 });
 
