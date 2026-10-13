@@ -115,7 +115,8 @@ What it builds (defined in `bots/ops/src/setup/blueprint.ts`):
 - **Roles**, branded and ordered: Arkhon Team, Moderator, Certa Staff, Argus Staff, Certa User,
   Argus User, Verified, with colors and permissions per role.
 - **Role icons**: a custom icon for every role (`bots/ops/assets/role-icons`, SVG sources in `src/`):
-  solid badges for staff, outlined badges for members, a check for Verified. Discord shows role
+  in the website's white + charcoal style: charcoal tiles for staff (like the site's primary
+  pill), white hairline tiles for members, the Arkhon A-mark for the team, a check for Verified. Discord shows role
   icons only on servers with Boost Level 2; until then the build skips them and says so.
 - **Server settings**: Medium verification, explicit-content filter for all members, mentions-only
   notifications, a curated @everyone permission set, and join messages off (members get a DM).
