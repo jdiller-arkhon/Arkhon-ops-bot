@@ -98,20 +98,20 @@ was created, updated or skipped.
 
 What it builds (defined in `bots/ops/src/setup/blueprint.ts`):
 
-| Category              | Channels                                                                                                                   | Who can see it                      |
-| --------------------- | -------------------------------------------------------------------------------------------------------------------------- | ----------------------------------- |
-| **ARKHON INDUSTRIES** | 👋 welcome · 📜 rules · 🚀 start-here · 📣 announcements                                                                   | Everyone, read-only                 |
-| **COMMUNITY**         | 💬 general · 🙋 introductions · 📸 showcase · 📰 industry-news · 💡 feedback (forum) · 🔊 Lounge · 🎙️ Office Hours (stage) | Everyone                            |
-| **SUPPORT**           | 🎫 support (ticket panel; private ticket threads)                                                                          | Everyone; tickets are private       |
-| **CERTA**             | 🛩️ certa-general · 🧭 certa-help · 📋 certa-compliance                                                                     | Certa User, Certa Staff, team, mods |
-| **ARGUS**             | 👁️ argus-general · 🧭 argus-help                                                                                           | Argus User, Argus Staff, team, mods |
-| **STAFF**             | 🛡️ staff-lounge · 🗂️ ticket-archive · 🔨 mod-log · 🔒 Staff Room                                                           | Staff roles only                    |
+| Category              | Channels                                                                                                                   | Who can see it                                               |
+| --------------------- | -------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------ |
+| **ARKHON INDUSTRIES** | 👋 welcome · 📜 rules · 🔐 verify · 🚀 start-here · 📣 announcements                                                       | Everyone sees welcome, rules, verify; the rest need Verified |
+| **COMMUNITY**         | 💬 general · 🙋 introductions · 📸 showcase · 📰 industry-news · 💡 feedback (forum) · 🔊 Lounge · 🎙️ Office Hours (stage) | Everyone                                                     |
+| **SUPPORT**           | 🎫 support (ticket panel; private ticket threads)                                                                          | Everyone; tickets are private                                |
+| **CERTA**             | 🛩️ certa-general · 🧭 certa-help · 📋 certa-compliance                                                                     | Certa User, Certa Staff, team, mods                          |
+| **ARGUS**             | 👁️ argus-general · 🧭 argus-help                                                                                           | Argus User, Argus Staff, team, mods                          |
+| **STAFF**             | 🛡️ staff-lounge · 🗂️ ticket-archive · 🔨 mod-log · 🔒 Staff Room                                                           | Staff roles only                                             |
 
 - **Lettering**: channel names use a monospace look (`👋・𝚠𝚎𝚕𝚌𝚘𝚖𝚎`). Discord has no custom fonts,
   so these are Unicode look-alike letters. Change `CHANNEL_NAME_STYLE` in the blueprint to
   `sansBold`, `sansItalic`, `smallCaps` or `plain` and re-run; existing channels are renamed in place.
 - **Roles**, branded and ordered: Arkhon Team, Moderator, Certa Staff, Argus Staff, Certa User,
-  Argus User, with colors and permissions per role.
+  Argus User, Verified, with colors and permissions per role.
 - **Server settings**: Medium verification, explicit-content filter for all members, mentions-only
   notifications, a curated @everyone permission set, and join messages off (members get a DM).
 - **Community** mode, so announcements can be followed, the feedback forum requires a product tag,
@@ -120,7 +120,7 @@ What it builds (defined in `bots/ops/src/setup/blueprint.ts`):
 - **Content**: a welcome guide in #welcome, the server rules in #rules, the role panel, the ticket
   panel and AutoMod rules.
 
-Options (all on by default): `server-settings`, `community`, `onboarding`.
+Options: `server-settings` and `community` (on by default), `onboarding` (off by default: Onboarding would hand out product roles before verification).
 
 Running it again is safe. Resources are matched by the id stored from the previous run, then by
 name, and updated to match the blueprint. Nothing outside the blueprint is touched. Re-running
@@ -129,6 +129,48 @@ Onboarding question it manages. To change the server permanently, edit the bluep
 
 `/setup status` shows every channel and role the bot uses, whether it still exists, whether it
 comes from an env override, and any missing bot permissions.
+
+## Member verification (member IDs)
+
+The server is gated: new members only see `#welcome`, `#rules` and `#verify` until they link their
+Arkhon account. Every account on arkhonindustries.com has a member ID (`ARK-K7Q4M-2XR9F`, shown in
+Settings → Member ID).
+
+1. In `#verify` the member clicks **Verify membership** and enters their member ID.
+2. The bot checks it locally (format + check character, so typos are caught instantly), then asks
+   the website for a one-time approval link.
+3. The member opens the link, signs in to arkhonindustries.com and clicks **Approve**. Typing
+   someone else's ID does nothing: only the signed-in owner can approve.
+4. The website notifies the bot (signed webhook); the bot grants **Verified** and DMs the member.
+   If the webhook is missed, the **I've approved** button checks the status directly.
+
+Security model ("best standard"):
+
+| Control            | Detail                                                                                                                     |
+| ------------------ | -------------------------------------------------------------------------------------------------------------------------- |
+| Member ID          | Crockford Base32, 9 random chars + Luhn mod N check char. Random, not sequential. Identifies an account; not a credential. |
+| Proof of ownership | Out-of-band approval on the website while signed in; 256-bit single-use token, 15 min expiry, stored hashed.               |
+| One-to-one         | One member ID per Discord account and vice versa (unique constraints on both sides).                                       |
+| Service auth       | Bot → website: dedicated bearer token, constant-time compare, fails closed.                                                |
+| Webhooks           | Website → bot: HMAC-SHA256 over `timestamp.body`, 5-minute window, event-id de-duplication (replay-proof).                 |
+| Alt shield         | Minimum Discord account age (default 7 days), per-user attempt limit (default 5/hour).                                     |
+| Raid shield        | Join spike (default 10 in 60s) starts a lockdown: verification closed, invites paused via Discord's incident actions.      |
+| Role guard         | Product roles added to an unverified member (by hand or Onboarding) are removed automatically.                             |
+| Audit              | Every link, unlink, block and lockdown is stored (`ops_verification_events`) and posted to `#mod-log`.                     |
+
+Staff commands:
+
+- `/member lookup user` · `/member find member-id` · `/member unlink user reason` · `/member resync user`
+- `/security status` · `/security lockdown on [minutes] [reason]` · `/security lockdown off`
+
+Support tickets show the opener's member ID (or "Not verified").
+
+Setup: apply the website migration and set the matching secrets on both sides
+(`ARKHON_COMMUNITY_API_TOKEN` ↔ `COMMUNITY_BOT_API_TOKEN`, `MEMBER_WEBHOOK_SECRET` ↔
+`COMMUNITY_BOT_WEBHOOK_SECRET`), and point the website's `COMMUNITY_BOT_WEBHOOK_URL` at
+`https://<this bot>/webhooks/member`. Full contract: `docs/community-verification.md` in the
+Arkhon-Industries repo. Without these variables the bot runs with verification off and the
+`#verify` button explains that.
 
 ## 4. Run locally
 

@@ -26,3 +26,33 @@ export function verifySignature(
   const actual = Buffer.from(provided, 'hex');
   return actual.length === expected.length && timingSafeEqual(actual, expected);
 }
+
+/** Max clock skew accepted for timestamped webhooks (seconds). */
+export const WEBHOOK_TOLERANCE_SECONDS = 300;
+
+/**
+ * Timestamped variant (Stripe-style): the signature covers `${timestamp}.${body}` and the
+ * timestamp must be within WEBHOOK_TOLERANCE_SECONDS of now, so a captured request cannot be
+ * replayed later. Combine with event-id de-duplication for replays inside the window.
+ */
+export function signTimestampedBody(
+  body: string | Buffer,
+  timestamp: number,
+  secret: string,
+): string {
+  return signBody(`${timestamp}.${body.toString()}`, secret);
+}
+
+export function verifyTimestampedSignature(
+  body: string | Buffer,
+  timestampHeader: string | string[] | undefined,
+  signatureHeader: string | string[] | undefined,
+  secret: string,
+  nowSeconds: number = Math.floor(Date.now() / 1000),
+): boolean {
+  if (typeof timestampHeader !== 'string' || !/^\d{1,12}$/.test(timestampHeader.trim()))
+    return false;
+  const timestamp = Number(timestampHeader.trim());
+  if (Math.abs(nowSeconds - timestamp) > WEBHOOK_TOLERANCE_SECONDS) return false;
+  return verifySignature(`${timestamp}.${body.toString()}`, signatureHeader, secret);
+}

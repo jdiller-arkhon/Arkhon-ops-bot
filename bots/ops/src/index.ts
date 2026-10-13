@@ -11,6 +11,9 @@ import { createWebhookServer } from './releases/server.js';
 import { onTicketMessage } from './tickets/service.js';
 import { runLayoutTasks } from './startup.js';
 import { LayoutStore } from './layout.js';
+import { CommunityApi } from './verification/api.js';
+import { guardProductRoles, onMemberJoinShield } from './verification/service.js';
+import { AttemptLimiter, RaidShield } from './verification/shield.js';
 
 async function main(): Promise<void> {
   loadDotEnv();
@@ -38,7 +41,27 @@ async function main(): Promise<void> {
   });
 
   const layout = new LayoutStore(config.layoutOverrides);
-  const ctx: OpsContext = { config, logger, prisma, client, layout };
+  const ctx: OpsContext = {
+    config,
+    logger,
+    prisma,
+    client,
+    layout,
+    security: {
+      api: CommunityApi.fromConfig(config),
+      attempts: new AttemptLimiter(config.verification.maxAttemptsPerHour, 3_600_000),
+      raid: new RaidShield(
+        config.raid.joinThreshold,
+        config.raid.windowSeconds * 1000,
+        config.raid.lockdownMinutes * 60_000,
+      ),
+    },
+  };
+  if (!ctx.security.api) {
+    logger.warn(
+      'member verification is off: set ARKHON_COMMUNITY_API_TOKEN and MEMBER_WEBHOOK_SECRET',
+    );
+  }
   const commands = await loadCommands<OpsContext>(COMMANDS_DIR);
   logger.info({ commands: [...commands.keys()] }, 'commands loaded');
 
@@ -69,7 +92,17 @@ async function main(): Promise<void> {
   });
 
   client.on(Events.InteractionCreate, createInteractionHandler(ctx, commands));
-  client.on(Events.GuildMemberAdd, (member) => void sendWelcomeDm(member, ctx));
+  client.on(Events.GuildMemberAdd, (member) => {
+    void sendWelcomeDm(member, ctx);
+    onMemberJoinShield(ctx, member).catch((error: unknown) =>
+      logger.error({ err: error }, 'raid shield failed'),
+    );
+  });
+  client.on(Events.GuildMemberUpdate, (before, after) => {
+    guardProductRoles(ctx, before, after).catch((error: unknown) =>
+      logger.error({ err: error, userId: after.id }, 'product role guard failed'),
+    );
+  });
   client.on(Events.MessageCreate, (message) => {
     onTicketMessage(message, ctx).catch((error: unknown) =>
       logger.error({ err: error, channelId: message.channelId }, 'ticket message tracking failed'),

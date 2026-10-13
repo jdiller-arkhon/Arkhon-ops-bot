@@ -18,7 +18,7 @@ export const CHANNEL_NAME_STYLE: ChannelNameStyle = 'monospace';
  */
 
 export type RoleKey =
-  'team' | 'moderator' | 'certaStaff' | 'argusStaff' | 'certaUser' | 'argusUser';
+  'team' | 'moderator' | 'certaStaff' | 'argusStaff' | 'certaUser' | 'argusUser' | 'verified';
 
 /** Who an overwrite applies to: @everyone, the bot itself, or a blueprint role. */
 export type Principal = 'everyone' | 'bot' | RoleKey;
@@ -120,6 +120,16 @@ const READ_ONLY: OverwriteSpec[] = [
   BOT_POSTER,
 ];
 
+/**
+ * Whole-server gating: hidden from @everyone, visible once a member has the Verified role
+ * (granted when they link an Arkhon member ID). Staff always see it.
+ */
+const VERIFIED_ONLY: OverwriteSpec[] = [
+  { principal: 'everyone', deny: ['ViewChannel'] },
+  { principal: 'verified', allow: ['ViewChannel'] },
+  ...STAFF_ROLES.map((principal) => ({ principal, allow: ['ViewChannel'] as PermissionsString[] })),
+];
+
 /** Hidden from everyone except the given roles, staff and the bot. */
 function privateTo(...roles: RoleKey[]): OverwriteSpec[] {
   return [
@@ -208,6 +218,16 @@ const BASE_BLUEPRINT: Blueprint = {
       description: 'Unlocks the Argus channels. Pinged for Argus releases.',
       permissions: [],
     },
+    {
+      key: 'verified',
+      name: 'Verified',
+      color: 0x16a34a,
+      hoist: false,
+      mentionable: false,
+      description:
+        'Linked to an Arkhon member ID. Unlocks the server. Kept lowest so product colors show.',
+      permissions: [],
+    },
   ],
 
   categories: [
@@ -231,11 +251,26 @@ const BASE_BLUEPRINT: Blueprint = {
           onboardingDefault: true,
         },
         {
+          key: 'verify',
+          name: '🔐・verify',
+          kind: 'text',
+          topic:
+            'Link your Arkhon member ID to unlock the server. Disappears once you are verified.',
+          overwrites: [
+            { principal: 'verified', deny: ['ViewChannel'] },
+            ...STAFF_ROLES.map((principal) => ({
+              principal,
+              allow: ['ViewChannel'] as PermissionsString[],
+            })),
+          ],
+        },
+        {
           key: 'startHere',
           name: '🚀・start-here',
           kind: 'text',
           topic: 'Pick the products you use to unlock their channels.',
           onboardingDefault: true,
+          overwrites: VERIFIED_ONLY,
         },
         {
           key: 'announcements',
@@ -243,6 +278,7 @@ const BASE_BLUEPRINT: Blueprint = {
           kind: 'announcement',
           topic: 'Release notes and official news for Certa and Argus.',
           onboardingDefault: true,
+          overwrites: VERIFIED_ONLY,
         },
       ],
     },
@@ -250,6 +286,7 @@ const BASE_BLUEPRINT: Blueprint = {
       key: 'community',
       name: 'COMMUNITY',
       overwrites: [
+        ...VERIFIED_ONLY,
         {
           principal: 'bot',
           allow: ['ViewChannel', 'SendMessages', 'EmbedLinks', 'ReadMessageHistory'],
@@ -328,12 +365,22 @@ const BASE_BLUEPRINT: Blueprint = {
       overwrites: [
         {
           principal: 'everyone',
+          deny: [
+            'ViewChannel',
+            'SendMessages',
+            'CreatePublicThreads',
+            'CreatePrivateThreads',
+            'AddReactions',
+          ],
+        },
+        {
+          principal: 'verified',
           allow: ['ViewChannel', 'ReadMessageHistory', 'SendMessagesInThreads', 'AttachFiles'],
-          deny: ['SendMessages', 'CreatePublicThreads', 'CreatePrivateThreads', 'AddReactions'],
         },
         ...STAFF_ROLES.map((principal) => ({
           principal,
           allow: [
+            'ViewChannel',
             'SendMessagesInThreads',
             'ReadMessageHistory',
             'AttachFiles',

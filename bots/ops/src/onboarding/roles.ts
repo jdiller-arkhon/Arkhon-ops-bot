@@ -9,7 +9,7 @@ import {
 } from 'discord.js';
 import type { OpsContext } from '../context.js';
 import { ids } from '../ids.js';
-import { requireGuildMember } from '../permissions.js';
+import { isStaff, requireGuildMember } from '../permissions.js';
 
 export type RoleChoice = Product | 'both';
 
@@ -57,6 +57,11 @@ export async function handleRoleButton(
 ): Promise<void> {
   const member = requireGuildMember(interaction, ctx.config);
   const layout = ctx.layout.require();
+  if (!member.roles.cache.has(layout.roles.verified) && !isStaff(member, layout)) {
+    throw new UserFacingError(
+      `Verify your Arkhon membership in <#${layout.channels.verify}> first.`,
+    );
+  }
   const roles = layout.roles.user;
   await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 

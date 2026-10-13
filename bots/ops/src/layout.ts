@@ -21,6 +21,8 @@ export const REQUIRED_RESOURCES = [
   'role.argusStaff',
   'role.certaUser',
   'role.argusUser',
+  'role.verified',
+  'channel.verify',
 ] as const;
 
 export const OPTIONAL_RESOURCES = [
@@ -48,6 +50,7 @@ export interface ServerLayout {
     modLog: string;
     feedbackForum: string;
     home: Record<Product, string>;
+    verify: string;
     welcome?: string;
     rules?: string;
     general?: string;
@@ -55,6 +58,8 @@ export interface ServerLayout {
   roles: {
     staff: Record<Product, string>;
     user: Record<Product, string>;
+    /** Granted once a member links their Arkhon member ID. Unlocks the server. */
+    verified: string;
     /** Company team: staff for every product. */
     team?: string;
     /** Community moderators: may use /mod but do not handle tickets. */
@@ -82,10 +87,12 @@ export function buildLayout(ids: ResourceIds): {
       modLog: req('channel.modLog'),
       feedbackForum: req('channel.feedback'),
       home: { certa: req('channel.certaGeneral'), argus: req('channel.argusGeneral') },
+      verify: req('channel.verify'),
     },
     roles: {
       staff: { certa: req('role.certaStaff'), argus: req('role.argusStaff') },
       user: { certa: req('role.certaUser'), argus: req('role.argusUser') },
+      verified: req('role.verified'),
     },
   };
   const welcome = opt('channel.welcome');

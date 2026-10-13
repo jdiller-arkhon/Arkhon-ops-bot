@@ -36,11 +36,15 @@ export function buildWelcomeMessage(ids: ResourceIds): BaseMessageOptions {
         value: `${c('rules', '#rules')} — short, and they keep this place useful.`,
       },
       {
-        name: '2. Pick your products',
+        name: '2. Verify your membership',
+        value: `${c('verify', '#verify')} — link your Arkhon member ID to unlock the server.`,
+      },
+      {
+        name: '3. Pick your products',
         value: `${c('startHere', '#start-here')} — unlocks the Certa and/or Argus channels.`,
       },
       {
-        name: '3. Say hello',
+        name: '4. Say hello',
         value: `${c('introductions', '#introductions')} — what you fly and what you use our tools for.`,
       },
       {

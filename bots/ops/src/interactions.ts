@@ -5,6 +5,11 @@ import { parseCustomId } from './ids.js';
 import { handleRoleButton, isRoleChoice } from './onboarding/roles.js';
 import { handleSetupButton } from './setup/session.js';
 import {
+  handleVerifyCheck,
+  handleVerifyStart,
+  handleVerifySubmit,
+} from './verification/handlers.js';
+import {
   createTicketFromModal,
   handleStaffAction,
   showTicketModal,
@@ -41,12 +46,17 @@ export function createInteractionHandler(ctx: OpsContext, commands: CommandRegis
         if (feature === 'ticket' && staffAction && arg && /^\d+$/.test(arg)) {
           return handleStaffAction(interaction, staffAction, Number(arg), ctx);
         }
+        if (feature === 'verify' && action === 'start') return handleVerifyStart(interaction, ctx);
+        if (feature === 'verify' && action === 'check' && arg)
+          return handleVerifyCheck(interaction, arg, ctx);
         if (feature === 'setup' && arg) {
           return handleSetupButton(interaction, action, arg, ctx);
         }
         if (feature === 'role' && isRoleChoice(action)) {
           return handleRoleButton(interaction, action, ctx);
         }
+      } else if (feature === 'verify' && action === 'submit') {
+        return handleVerifySubmit(interaction, ctx);
       } else if (feature === 'ticket' && action === 'modal' && isProduct(arg)) {
         return createTicketFromModal(interaction, arg, ctx);
       }

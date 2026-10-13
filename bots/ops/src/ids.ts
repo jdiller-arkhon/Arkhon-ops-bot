@@ -13,6 +13,9 @@ export const ids = {
   ticketWaiting: (ticketId: number) => `ops:ticket:waiting:${ticketId}`,
   ticketClose: (ticketId: number) => `ops:ticket:close:${ticketId}`,
   role: (choice: 'certa' | 'argus' | 'both') => `ops:role:${choice}`,
+  verifyStart: 'ops:verify:start',
+  verifySubmit: 'ops:verify:submit',
+  verifyCheck: (requestId: string) => `ops:verify:check:${requestId}`,
   setupConfirm: (token: string) => `ops:setup:confirm:${token}`,
   setupCancel: (token: string) => `ops:setup:cancel:${token}`,
 } as const;
@@ -28,6 +31,8 @@ export function parseCustomId(customId: string): ParsedCustomId | undefined {
   if (prefix !== CUSTOM_ID_PREFIX || !feature || !action) return undefined;
   return arg === undefined ? { feature, action } : { feature, action, arg };
 }
+
+export const VERIFY_FIELDS = { memberId: 'memberId' } as const;
 
 export const TICKET_FIELDS = {
   subject: 'subject',

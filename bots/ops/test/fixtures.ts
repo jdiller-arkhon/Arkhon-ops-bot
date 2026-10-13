@@ -25,6 +25,6 @@ export const validOpsEnv: Record<string, string> = {
 /** A LayoutStore resolved from the fixture env overrides. */
 export function fixtureLayout(env: Record<string, string> = validOpsEnv): LayoutStore {
   const store = new LayoutStore(loadOpsConfig(env).layoutOverrides);
-  store.apply({});
+  store.apply({ 'role.verified': '300000000000000009', 'channel.verify': '200000000000000009' });
   return store;
 }

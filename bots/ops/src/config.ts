@@ -55,6 +55,18 @@ export const opsEnvSchema = baseEnvSchema
     GITHUB_WEBHOOK_SECRET: z.string().min(16, 'must be at least 16 characters').optional(),
     GITHUB_RELEASE_REPOS: productRepoMap,
 
+    // Member verification against arkhonindustries.com
+    ARKHON_WEBSITE_URL: z.string().url().default('https://arkhonindustries.com'),
+    ARKHON_COMMUNITY_API_TOKEN: z.string().min(32, 'must be at least 32 characters').optional(),
+    MEMBER_WEBHOOK_SECRET: z.string().min(32, 'must be at least 32 characters').optional(),
+
+    // Alt and raid shield
+    VERIFY_MIN_ACCOUNT_AGE_DAYS: z.coerce.number().int().min(0).max(365).default(7),
+    VERIFY_MAX_ATTEMPTS_PER_HOUR: z.coerce.number().int().min(1).max(50).default(5),
+    RAID_JOIN_THRESHOLD: z.coerce.number().int().min(2).max(500).default(10),
+    RAID_JOIN_WINDOW_SECONDS: z.coerce.number().int().min(10).max(3600).default(60),
+    RAID_LOCKDOWN_MINUTES: z.coerce.number().int().min(1).max(1440).default(30),
+
     // Feedback -> GitHub Issues
     GITHUB_TOKEN: z.string().min(1).optional(),
     GITHUB_FEEDBACK_REPOS: productRepoMap,
@@ -66,6 +78,15 @@ export const opsEnvSchema = baseEnvSchema
         code: z.ZodIssueCode.custom,
         path: ['GITHUB_WEBHOOK_SECRET'],
         message: 'is required when GITHUB_RELEASE_REPOS is set',
+      });
+    }
+    if (Boolean(env.ARKHON_COMMUNITY_API_TOKEN) !== Boolean(env.MEMBER_WEBHOOK_SECRET)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: [
+          env.ARKHON_COMMUNITY_API_TOKEN ? 'MEMBER_WEBHOOK_SECRET' : 'ARKHON_COMMUNITY_API_TOKEN',
+        ],
+        message: 'ARKHON_COMMUNITY_API_TOKEN and MEMBER_WEBHOOK_SECRET must be set together',
       });
     }
     if (Object.keys(env.GITHUB_FEEDBACK_REPOS).length > 0 && !env.GITHUB_TOKEN) {
@@ -112,6 +133,19 @@ export const opsEnvSchema = baseEnvSchema
       releaseSecret: env.RELEASE_WEBHOOK_SECRET,
       githubSecret: env.GITHUB_WEBHOOK_SECRET,
       githubReleaseRepos: env.GITHUB_RELEASE_REPOS,
+    },
+    verification: {
+      websiteUrl: env.ARKHON_WEBSITE_URL.replace(/\/+$/, ''),
+      apiToken: env.ARKHON_COMMUNITY_API_TOKEN,
+      webhookSecret: env.MEMBER_WEBHOOK_SECRET,
+      enabled: Boolean(env.ARKHON_COMMUNITY_API_TOKEN && env.MEMBER_WEBHOOK_SECRET),
+      minAccountAgeDays: env.VERIFY_MIN_ACCOUNT_AGE_DAYS,
+      maxAttemptsPerHour: env.VERIFY_MAX_ATTEMPTS_PER_HOUR,
+    },
+    raid: {
+      joinThreshold: env.RAID_JOIN_THRESHOLD,
+      windowSeconds: env.RAID_JOIN_WINDOW_SECONDS,
+      lockdownMinutes: env.RAID_LOCKDOWN_MINUTES,
     },
     feedback: {
       githubToken: env.GITHUB_TOKEN,

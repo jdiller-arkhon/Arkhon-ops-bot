@@ -83,16 +83,43 @@ describe('blueprint integrity', () => {
     expect(allChannels().length + BLUEPRINT.categories.length).toBeLessThan(500);
   });
 
-  it('meets Onboarding requirements: 7+ default channels, 5+ open to @everyone for posting', () => {
-    const defaults = allChannels().filter((c) => c.onboardingDefault);
-    expect(defaults.length).toBeGreaterThanOrEqual(7);
-    const chattable = defaults.filter((c) => {
-      const everyone = mergeOverwrites(c.category.overwrites, c.overwrites).find(
-        (o) => o.principal === 'everyone',
-      );
-      return !everyone?.deny?.includes('ViewChannel') && !everyone?.deny?.includes('SendMessages');
-    });
-    expect(chattable.length).toBeGreaterThanOrEqual(5);
+  it('gates the server: unverified members see only welcome, rules and verify', () => {
+    const visibleTo = (principal: 'everyone' | 'verified') =>
+      allChannels()
+        .filter((c) => {
+          const merged = mergeOverwrites(c.category.overwrites, c.overwrites);
+          const everyone = merged.find((o) => o.principal === 'everyone');
+          const role = merged.find((o) => o.principal === principal);
+          const everyoneSees = !everyone?.deny?.includes('ViewChannel');
+          if (principal === 'everyone') return everyoneSees;
+          if (role?.deny?.includes('ViewChannel')) return false;
+          return everyoneSees || Boolean(role?.allow?.includes('ViewChannel'));
+        })
+        .map((c) => c.key);
+    expect(visibleTo('everyone').sort()).toEqual(['rules', 'verify', 'welcome']);
+    const verified = visibleTo('verified');
+    expect(verified).not.toContain('verify');
+    expect(verified).toEqual(
+      expect.arrayContaining([
+        'welcome',
+        'rules',
+        'startHere',
+        'announcements',
+        'general',
+        'feedback',
+        'support',
+      ]),
+    );
+    // Product and staff channels need more than Verified.
+    expect(verified).not.toContain('certaGeneral');
+    expect(verified).not.toContain('staffLounge');
+  });
+
+  it('lets staff see #verify and keeps the Verified role lowest so product colors show', () => {
+    const verify = findChannel('verify');
+    const merged = mergeOverwrites(verify!.category.overwrites, verify!.overwrites);
+    expect(merged.find((o) => o.principal === 'team')?.allow).toContain('ViewChannel');
+    expect(BLUEPRINT.roles.at(-1)?.key).toBe('verified');
   });
 
   it('keeps product channels private to their roles', () => {

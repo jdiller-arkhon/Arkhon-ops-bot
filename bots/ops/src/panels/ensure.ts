@@ -2,7 +2,7 @@ import type { BaseMessageOptions, Client } from 'discord.js';
 import type { PrismaClient } from '@prisma/client';
 import type { Logger } from '@arkhon/shared';
 
-export type PanelKey = 'support' | 'roles' | 'welcome' | 'rules';
+export type PanelKey = 'support' | 'roles' | 'welcome' | 'rules' | 'verify';
 
 /**
  * Keeps exactly one panel message alive per key. On startup: if the stored message still exists

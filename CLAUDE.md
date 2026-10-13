@@ -32,6 +32,9 @@ bots/ops/          @arkhon/ops-bot
   src/feedback/          forum reaction -> GitHub issue
   src/layout.ts          LayoutStore: channel/role ids from /setup (DB) with env overrides
   src/startup.ts         panels, posted content, AutoMod: runs on startup and after /setup
+  src/verification/      member ID verification: api.ts (website client), handlers.ts (#verify flow),
+                         service.ts (link/unlink, lockdown, role guard), shield.ts (pure alt/raid logic),
+                         webhook.ts (signed website events), audit.ts (events + #mod-log)
   src/setup/             blueprint.ts (the whole server as data), plan.ts (pure diff),
                          apply.ts (Discord side), content.ts (welcome/rules), session.ts (preview/confirm)
 bots/certa/, bots/argus/ placeholders for the next two bots
@@ -93,6 +96,11 @@ Run `pnpm typecheck && pnpm lint && pnpm test` before committing. All three must
 - **Buildout safety:** `/setup server` must stay previewable and idempotent. The planner is pure
   and tested; the executor treats every resource independently and saves ids as it goes. Never add
   deletion of resources outside the blueprint.
+- **Member verification:** the website is the source of truth for links; the bot mirrors them in
+  `ops_member_links`. Keep the member ID algorithm identical to the website's
+  (`lib/platform/member-id.ts` in Arkhon-Industries) and the pinned `MEMBER_ID_TEST_VECTORS` equal
+  in both repos. Webhooks must stay timestamped + HMAC + de-duplicated. Never treat a typed member
+  ID alone as proof of ownership.
 - **No TODOs, stubs or placeholder functions.** Everything merged must run.
 
 ## Testing rules
@@ -114,13 +122,15 @@ Run `pnpm typecheck && pnpm lint && pnpm test` before committing. All three must
 Summary of the model:
 
 - Role order (top to bottom): the bot's own role, Arkhon Team, Moderator, Certa Staff, Argus Staff,
-  Certa User, Argus User. The bot's role must be at the top; it can only manage roles below it.
+  Certa User, Argus User, Verified (lowest so product colors show). The bot's role must be at the top; it can only manage roles below it.
 - **Arkhon Team** is staff for every product (tickets, /ticket, /mod). **Certa/Argus Staff** handle
   their product's tickets. **Moderator** can use /mod and sees product channels but does not handle
   tickets. Administrators pass every check. Staff permissions (Manage Messages, Timeout Members) make
   `/ticket` and `/mod` visible; the bot also checks roles on every action.
+- The server is gated: @everyone sees only #welcome, #rules and #verify. **Verified** (granted when a
+  member links their member ID) unlocks the rest; #verify hides itself from verified members.
 - Product categories are hidden from @everyone and unlocked by Certa User / Argus User (granted by
-  Onboarding or the #start-here panel). Staff categories are visible only to staff roles.
+  the #start-here panel, verified members only). Staff categories are visible only to staff roles.
 - #support is read-only except inside private ticket threads (members can post in threads but not
   create them). Anyone with Manage Threads on #support can see every ticket; keep that to roles that
   should.

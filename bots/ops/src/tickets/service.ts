@@ -144,6 +144,9 @@ export async function createTicketFromModal(
   activeTicketChannels.add(channel.id);
 
   const staffRoleId = layout.roles.staff[product];
+  const memberLink = await ctx.prisma.opsMemberLink.findUnique({
+    where: { discordUserId: member.id },
+  });
   const embed = arkhonEmbed({
     product,
     title: `Ticket #${ticket.id}: ${subject}`,
@@ -152,6 +155,13 @@ export async function createTicketFromModal(
       { name: 'Opened by', value: `${member}`, inline: true },
       { name: 'App version', value: appVersion ?? 'not provided', inline: true },
       { name: 'Status', value: 'Open', inline: true },
+      {
+        name: 'Member ID',
+        value: memberLink
+          ? `\`${memberLink.memberId}\`${memberLink.accountRole ? ` · ${memberLink.accountRole} account` : ''}`
+          : 'Not verified',
+        inline: true,
+      },
     ],
     timestamp: true,
   });

@@ -98,3 +98,39 @@ model OpsFeedbackIssue {
 
   @@map("ops_feedback_issues")
 }
+
+// ---------------------------------------------------------------- Ops bot: member verification
+
+// A Discord account verified against an Arkhon member ID (one-to-one on both sides).
+model OpsMemberLink {
+  discordUserId String   @id
+  memberId      String   @unique
+  accountRole   String? // role on arkhonindustries.com: client | pilot | admin
+  linkedAt      DateTime
+  updatedAt     DateTime @updatedAt
+
+  @@map("ops_member_links")
+}
+
+// Audit trail for verification: started, linked, unlinked, failed and blocked attempts, lockdowns.
+model OpsVerificationEvent {
+  id            Int      @id @default(autoincrement())
+  discordUserId String?
+  memberId      String?
+  type          String
+  detail        String?
+  actorId       String?
+  createdAt     DateTime @default(now())
+
+  @@index([discordUserId])
+  @@index([memberId])
+  @@map("ops_verification_events")
+}
+
+// Website webhook event ids already processed, so a replayed delivery is ignored.
+model OpsWebhookEvent {
+  id         String   @id
+  receivedAt DateTime @default(now())
+
+  @@map("ops_webhook_events")
+}

@@ -71,7 +71,7 @@ export async function execute(
     const options: BuildOptions = {
       serverSettings: interaction.options.getBoolean('server-settings') ?? true,
       community: interaction.options.getBoolean('community') ?? true,
-      onboarding: interaction.options.getBoolean('onboarding') ?? true,
+      onboarding: interaction.options.getBoolean('onboarding') ?? false,
     };
     const plan = await planForGuild(ctx, guild);
     const embed = buildPreviewEmbed(plan, options, missingPermissions);

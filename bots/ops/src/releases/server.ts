@@ -4,6 +4,7 @@ import type { OpsContext } from '../context.js';
 import { announceRelease } from './announce.js';
 import { parseGithubRelease, parseReleaseWebhook, type Release } from './payload.js';
 import { verifySignature } from './signature.js';
+import { handleMemberWebhook, MEMBER_WEBHOOK_PATH } from '../verification/webhook.js';
 
 export const RELEASE_PATH = '/webhooks/release';
 export const GITHUB_PATH = '/webhooks/github';
@@ -70,6 +71,16 @@ export function createWebhookServer(ctx: OpsContext): Server {
     if (req.method === 'GET' && path === '/healthz') {
       const ready = ctx.client.isReady();
       send(res, ready ? 200 : 503, { ok: ready });
+      return;
+    }
+    if (path === MEMBER_WEBHOOK_PATH) {
+      if (req.method !== 'POST') throw new HttpError(405, 'method not allowed');
+      if (!config.verification.enabled)
+        throw new HttpError(404, 'member verification is not configured');
+      if (!ctx.client.isReady() || !ctx.layout.current)
+        throw new HttpError(503, 'bot is not ready');
+      const result = await handleMemberWebhook(ctx, await readBody(req), req.headers);
+      send(res, result.status, result.body);
       return;
     }
     if (path !== RELEASE_PATH && path !== GITHUB_PATH) throw new HttpError(404, 'not found');

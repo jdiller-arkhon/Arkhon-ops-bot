@@ -38,7 +38,7 @@ function optionLines(options: BuildOptions, community: boolean): string {
   return [
     `${mark(options.serverSettings)} Server settings: verification, content filter, notifications, @everyone permissions`,
     `${mark(options.community)} Community: ${community ? 'already enabled' : 'enable (announcements, forum, stage, onboarding)'}`,
-    `${mark(options.onboarding)} Native Onboarding: product question and default channels`,
+    `${mark(options.onboarding)} Native Onboarding (off by default: verification gates the server instead)`,
   ].join('\n');
 }
 
