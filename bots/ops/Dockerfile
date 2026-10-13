@@ -31,8 +31,10 @@ RUN pnpm install --frozen-lockfile --prod --filter @arkhon/ops-bot... --filter a
   && pnpm store prune
 COPY --from=build /app/packages/shared/dist packages/shared/dist
 COPY --from=build /app/bots/ops/dist bots/ops/dist
+COPY bots/ops/assets bots/ops/assets
 USER node
 EXPOSE 3000
 HEALTHCHECK --interval=30s --timeout=5s --start-period=60s \
   CMD node -e "fetch('http://127.0.0.1:'+(process.env.WEBHOOK_PORT||3000)+'/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
-CMD ["sh", "-c", "node scripts/prisma.mjs migrate deploy && node bots/ops/dist/index.js"]
+# exec replaces the shell so node is PID 1 and receives SIGTERM for a graceful shutdown.
+CMD ["sh", "-c", "node scripts/prisma.mjs migrate deploy && exec node bots/ops/dist/index.js"]

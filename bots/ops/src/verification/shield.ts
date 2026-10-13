@@ -60,6 +60,13 @@ export class AttemptLimiter {
   reset(key: string): void {
     this.attempts.delete(key);
   }
+
+  /** Drops users whose window is empty, so the map does not grow forever. */
+  prune(now: number = Date.now()): void {
+    for (const [key, times] of this.attempts) {
+      if (times.every((t) => now - t >= this.windowMs)) this.attempts.delete(key);
+    }
+  }
 }
 
 export interface LockdownState {

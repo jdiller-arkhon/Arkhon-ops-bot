@@ -7,6 +7,7 @@ import { buildRulesMessage, buildWelcomeMessage } from './setup/content.js';
 import { buildSupportPanel } from './tickets/panel.js';
 import { loadActiveTicketChannels } from './tickets/service.js';
 import { buildVerifyPanel } from './verification/panel.js';
+import { sweepUnverifiedProductRoles } from './verification/reconcile.js';
 
 /**
  * Brings the server in line with the current layout: panels, posted content and AutoMod rules.
@@ -30,6 +31,7 @@ export async function runLayoutTasks(ctx: OpsContext, guild: Guild): Promise<str
     ],
     ['role panel', () => ensurePanel(ctx, 'roles', layout.channels.startHere, buildRolePanel())],
     ['automod rules', () => ensureAutoModRules(guild, ctx.config, layout, logger)],
+    ['product role sweep', () => sweepUnverifiedProductRoles(ctx, guild)],
     [
       'verify panel',
       () =>

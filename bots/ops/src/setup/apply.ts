@@ -1,3 +1,6 @@
+import { readFile } from 'node:fs/promises';
+import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import type { PermissionsBitField } from 'discord.js';
 import {
   ChannelFlags,
@@ -134,6 +137,7 @@ export async function snapshotGuild(ctx: OpsContext, guild: Guild): Promise<Guil
       })),
     stored: Object.fromEntries(stored.map((row) => [row.key, row.discordId])),
     community: guild.features.includes(GuildFeature.Community),
+    roleIcons: guild.features.includes(GuildFeature.RoleIcons),
   };
 }
 
@@ -201,6 +205,7 @@ export async function executeBuildout(
   const isCommunity = () => guild.features.includes(GuildFeature.Community);
 
   // ---------------------------------------------------------------- roles
+  const hasRoleIcons = guild.features.includes(GuildFeature.RoleIcons);
   await progress('Creating roles');
   for (const role of blueprint.roles) {
     const planItem = item(`role.${role.key}`);
@@ -223,8 +228,15 @@ export async function executeBuildout(
         : await guild.roles.create(data);
       await save(planItem.key, 'role', result.id);
       record(planItem, !planItem.existingId);
+      // Uploaded on new roles and roles without an icon, so a hand-picked icon is kept.
+      if (hasRoleIcons && !result.icon) {
+        await attempt(`Role icon ${role.name}`, async () => {
+          await guild.roles.edit(result.id, { icon: await readRoleIcon(role.icon), reason });
+        });
+      }
     });
   }
+  if (!hasRoleIcons) report.skipped.push('Role icons (need Boost Level 2; re-run after boosting)');
   await attempt('Role order', async () => {
     const top = me.roles.highest.position;
     const positions = blueprint.roles
@@ -447,7 +459,7 @@ export async function executeBuildout(
         const existingPrompt = current?.prompts.find((p) => p.title === blueprint.onboarding.title);
         const pick = (keys: string[], prefix: string) =>
           keys.map((key) => ids[`${prefix}.${key}`]).filter((id): id is string => Boolean(id));
-        const prompts = [
+        const blueprintPrompts = [
           {
             ...(existingPrompt ? { id: existingPrompt.id } : {}),
             title: blueprint.onboarding.title,
@@ -464,6 +476,28 @@ export async function executeBuildout(
             })),
           },
         ];
+        // editOnboarding replaces everything, so carry over prompts an admin added by hand.
+        const otherPrompts = current
+          ? [...current.prompts.values()]
+              .filter((p) => p.id !== existingPrompt?.id)
+              .map((p) => ({
+                id: p.id,
+                title: p.title,
+                singleSelect: p.singleSelect,
+                required: p.required,
+                inOnboarding: p.inOnboarding,
+                type: p.type,
+                options: [...p.options.values()].map((o) => ({
+                  id: o.id,
+                  title: o.title,
+                  description: o.description,
+                  emoji: o.emoji?.id ?? o.emoji?.name ?? null,
+                  roles: [...o.roles.keys()],
+                  channels: [...o.channels.keys()],
+                })),
+              }))
+          : [];
+        const prompts = [...otherPrompts, ...blueprintPrompts];
         const defaultChannels = pick(
           blueprint.categories.flatMap((c) =>
             c.channels.filter((ch) => ch.onboardingDefault).map((ch) => ch.key),
@@ -480,7 +514,12 @@ export async function executeBuildout(
           });
         } catch (error) {
           // Save the questions even when Discord refuses to switch Onboarding on.
-          await guild.editOnboarding({ prompts, defaultChannels, enabled: false, reason });
+          await guild.editOnboarding({
+            prompts,
+            defaultChannels,
+            enabled: current?.enabled ?? false,
+            reason,
+          });
           throw new Error(
             `questions saved but Onboarding is not enabled (${errorMessage(error)}). Turn it on in Server Settings → Onboarding`,
           );
@@ -511,6 +550,13 @@ export async function executeBuildout(
     'server buildout finished',
   );
   return report;
+}
+
+/** Role icons ship with the bot in bots/ops/assets/role-icons (same path from src/ and dist/). */
+export const ROLE_ICON_DIR = fileURLToPath(new URL('../../assets/role-icons/', import.meta.url));
+
+export async function readRoleIcon(file: string): Promise<Buffer> {
+  return readFile(join(ROLE_ICON_DIR, file));
 }
 
 function channelType(kind: ChannelSpec['kind'], community: boolean) {

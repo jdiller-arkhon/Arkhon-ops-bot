@@ -33,11 +33,12 @@ function list(names: string[], max = 1000): string {
   return truncate(names.join(', '), max);
 }
 
-function optionLines(options: BuildOptions, community: boolean): string {
+function optionLines(options: BuildOptions, community: boolean, roleIcons: boolean): string {
   const mark = (on: boolean) => (on ? '✅' : '➖');
   return [
     `${mark(options.serverSettings)} Server settings: verification, content filter, notifications, @everyone permissions`,
     `${mark(options.community)} Community: ${community ? 'already enabled' : 'enable (announcements, forum, stage, onboarding)'}`,
+    `${roleIcons ? '✅' : '➖'} Role icons: ${roleIcons ? 'custom icon for every role' : 'need Boost Level 2 (applied on a later run once boosted)'}`,
     `${mark(options.onboarding)} Native Onboarding (off by default: verification gates the server instead)`,
   ].join('\n');
 }
@@ -60,7 +61,7 @@ export function buildPreviewEmbed(
       line('Categories', summary.category),
       line('Channels', summary.channel),
       '',
-      optionLines(options, plan.community),
+      optionLines(options, plan.community, plan.roleIcons),
       '',
       'Existing roles and channels are matched by name and updated to match the blueprint (names, colors,',
       'topics and permissions). Anything not in the blueprint is left alone. Running this again is safe.',

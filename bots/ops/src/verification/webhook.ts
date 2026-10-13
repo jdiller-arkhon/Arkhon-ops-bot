@@ -62,11 +62,8 @@ export async function handleMemberWebhook(
   } catch {
     return { status: 400, body: { ok: false, error: 'invalid payload' } };
   }
-  try {
-    await ctx.prisma.opsWebhookEvent.create({ data: { id: event.id } });
-  } catch (error) {
-    if (isUniqueViolation(error)) return { status: 200, body: { ok: true, duplicate: true } };
-    throw error;
+  if (await ctx.prisma.opsWebhookEvent.findUnique({ where: { id: event.id } })) {
+    return { status: 200, body: { ok: true, duplicate: true } };
   }
 
   if (event.type === 'member.linked') {
@@ -81,11 +78,22 @@ export async function handleMemberWebhook(
       'webhook',
     );
   } else {
-    await removeMemberLink(ctx, event.data.discordUserId, {
-      reason: event.data.reason ?? 'Unlinked on arkhonindustries.com',
-      source: 'webhook',
-      notifyWebsite: false,
+    // A late unlink for an older member ID must not remove a newer link.
+    const current = await ctx.prisma.opsMemberLink.findUnique({
+      where: { discordUserId: event.data.discordUserId },
     });
+    if (!current || !event.data.memberId || current.memberId === event.data.memberId) {
+      await removeMemberLink(ctx, event.data.discordUserId, {
+        reason: event.data.reason ?? 'Unlinked on arkhonindustries.com',
+        source: 'webhook',
+        notifyWebsite: false,
+      });
+    }
   }
+  // Recorded only once applied: a delivery that failed part-way is processed again on retry,
+  // and the periodic reconciliation repairs anything a lost delivery missed.
+  await ctx.prisma.opsWebhookEvent.create({ data: { id: event.id } }).catch((error: unknown) => {
+    if (!isUniqueViolation(error)) throw error;
+  });
   return { status: 200, body: { ok: true } };
 }

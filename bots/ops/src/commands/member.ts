@@ -9,7 +9,7 @@ import {
   type ChatInputCommandInteraction,
 } from 'discord.js';
 import type { OpsContext } from '../context.js';
-import { requireModerator } from '../permissions.js';
+import { requireModerator, requireStaff } from '../permissions.js';
 import { CommunityApiError } from '../verification/api.js';
 import { applyMemberLink, removeMemberLink } from '../verification/service.js';
 import { accountAgeDays } from '../verification/shield.js';
@@ -77,9 +77,14 @@ export async function execute(
   interaction: ChatInputCommandInteraction,
   ctx: OpsContext,
 ): Promise<void> {
-  const staff = requireModerator(interaction, ctx);
-  const layout = ctx.layout.require();
   const sub = interaction.options.getSubcommand();
+  // Moderators may look people up; unlink and resync change the member's link on the website,
+  // so they are limited to ticket staff, the Arkhon Team and admins.
+  const staff =
+    sub === 'unlink' || sub === 'resync'
+      ? requireStaff(interaction, ctx)
+      : requireModerator(interaction, ctx);
+  const layout = ctx.layout.require();
   await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
   if (sub === 'lookup') {

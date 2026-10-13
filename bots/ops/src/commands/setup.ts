@@ -47,7 +47,9 @@ export const data = new SlashCommandBuilder()
       .addBooleanOption((opt) =>
         opt
           .setName('onboarding')
-          .setDescription('Configure native Onboarding questions (default: on)'),
+          .setDescription(
+            'Configure native Onboarding (default: off; conflicts with member verification)',
+          ),
       ),
   )
   .addSubcommand((sub) =>

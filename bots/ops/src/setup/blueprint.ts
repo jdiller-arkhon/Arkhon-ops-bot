@@ -38,6 +38,11 @@ export interface RoleSpec {
   mentionable: boolean;
   permissions: PermissionsString[];
   description: string;
+  /**
+   * Role icon file in bots/ops/assets/role-icons (128×128 PNG; SVG sources in ./src). Shown next to
+   * member names on servers with Boost Level 2 (Discord's Role Icons feature).
+   */
+  icon: string;
 }
 
 export type ChannelKind = 'text' | 'announcement' | 'forum' | 'voice' | 'stage';
@@ -96,6 +101,8 @@ export interface Blueprint {
 // ---------------------------------------------------------------- shared overwrite sets
 
 const STAFF_ROLES: RoleKey[] = ['team', 'moderator', 'certaStaff', 'argusStaff'];
+/** Roles that handle support tickets (Moderators do not). */
+const TICKET_STAFF: RoleKey[] = ['team', 'certaStaff', 'argusStaff'];
 
 const BOT_POSTER: OverwriteSpec = {
   principal: 'bot',
@@ -149,6 +156,7 @@ const BASE_BLUEPRINT: Blueprint = {
     {
       key: 'team',
       name: 'Arkhon Team',
+      icon: 'team.png',
       color: 0x1d4ed8,
       hoist: true,
       mentionable: false,
@@ -169,6 +177,7 @@ const BASE_BLUEPRINT: Blueprint = {
     {
       key: 'moderator',
       name: 'Moderator',
+      icon: 'moderator.png',
       color: 0x0f766e,
       hoist: true,
       mentionable: false,
@@ -185,6 +194,7 @@ const BASE_BLUEPRINT: Blueprint = {
     {
       key: 'certaStaff',
       name: 'Certa Staff',
+      icon: 'certaStaff.png',
       color: 0x0891b2,
       hoist: true,
       mentionable: false,
@@ -194,6 +204,7 @@ const BASE_BLUEPRINT: Blueprint = {
     {
       key: 'argusStaff',
       name: 'Argus Staff',
+      icon: 'argusStaff.png',
       color: 0x7c3aed,
       hoist: true,
       mentionable: false,
@@ -203,6 +214,7 @@ const BASE_BLUEPRINT: Blueprint = {
     {
       key: 'certaUser',
       name: 'Certa User',
+      icon: 'certaUser.png',
       color: 0x67e8f9,
       hoist: false,
       mentionable: true,
@@ -212,6 +224,7 @@ const BASE_BLUEPRINT: Blueprint = {
     {
       key: 'argusUser',
       name: 'Argus User',
+      icon: 'argusUser.png',
       color: 0xc4b5fd,
       hoist: false,
       mentionable: true,
@@ -221,6 +234,7 @@ const BASE_BLUEPRINT: Blueprint = {
     {
       key: 'verified',
       name: 'Verified',
+      icon: 'verified.png',
       color: 0x16a34a,
       hoist: false,
       mentionable: false,
@@ -377,7 +391,7 @@ const BASE_BLUEPRINT: Blueprint = {
           principal: 'verified',
           allow: ['ViewChannel', 'ReadMessageHistory', 'SendMessagesInThreads', 'AttachFiles'],
         },
-        ...STAFF_ROLES.map((principal) => ({
+        ...TICKET_STAFF.map((principal) => ({
           principal,
           allow: [
             'ViewChannel',
@@ -386,6 +400,9 @@ const BASE_BLUEPRINT: Blueprint = {
             'AttachFiles',
           ] as PermissionsString[],
         })),
+        // Moderators hold Manage Threads server-wide, which would reveal every private ticket
+        // thread. They do not handle tickets, so it is removed here.
+        { principal: 'moderator', deny: ['ManageThreads'] },
         {
           principal: 'bot',
           allow: [
@@ -487,7 +504,14 @@ const BASE_BLUEPRINT: Blueprint = {
           name: '🗂️・ticket-archive',
           kind: 'text',
           topic: 'Transcripts of closed support tickets. Posted by the bot.',
-          overwrites: STAFF_ROLES.map((principal) => ({ principal, deny: ['SendMessages'] })),
+          overwrites: [
+            ...STAFF_ROLES.map((principal) => ({
+              principal,
+              deny: ['SendMessages'] as PermissionsString[],
+            })),
+            // Transcripts are customer support conversations: ticket staff only.
+            { principal: 'moderator', deny: ['ViewChannel'] },
+          ],
         },
         {
           key: 'modLog',

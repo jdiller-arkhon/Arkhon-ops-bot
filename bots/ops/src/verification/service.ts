@@ -54,7 +54,11 @@ export async function applyMemberLink(
     });
   } catch (error) {
     if (!isUniqueViolation(error)) throw error;
-    // A concurrent delivery for the same link won the race; the row is already correct.
+    // Fine only if a concurrent delivery already wrote this exact link; anything else is real.
+    const row = await ctx.prisma.opsMemberLink.findUnique({
+      where: { discordUserId: link.discordUserId },
+    });
+    if (row?.memberId !== link.memberId) throw error;
   }
 
   const member = await fetchMember(ctx, link.discordUserId);
@@ -106,8 +110,7 @@ export async function removeMemberLink(
       ctx.logger.warn({ err: error, discordUserId }, 'website unlink failed');
     });
   }
-  if (existing)
-    await ctx.prisma.opsMemberLink.delete({ where: { discordUserId } }).catch(() => undefined);
+  if (existing) await ctx.prisma.opsMemberLink.deleteMany({ where: { discordUserId } });
 
   const member = await fetchMember(ctx, discordUserId);
   if (member) {
@@ -200,17 +203,26 @@ export async function guardProductRoles(
   after: GuildMember,
 ): Promise<void> {
   const layout = ctx.layout.current;
-  if (!layout || after.guild.id !== ctx.config.discord.guildId || after.user.bot) return;
+  // Without verification configured there is no way to get Verified, so do not enforce it.
+  if (
+    !layout ||
+    !ctx.security.api ||
+    after.guild.id !== ctx.config.discord.guildId ||
+    after.user.bot
+  )
+    return;
   if (after.roles.cache.has(layout.roles.verified) || isStaff(after, layout)) return;
   const productRoles = PRODUCTS.map((p) => layout.roles.user[p]);
-  const gained = productRoles.filter(
-    (id) => after.roles.cache.has(id) && !before.roles?.cache.has(id),
-  );
-  if (gained.length === 0) return;
-  await after.roles.remove(gained, 'Product roles require verification').catch(() => undefined);
+  const held = productRoles.filter((id) => after.roles.cache.has(id));
+  const gained = held.filter((id) => !before.roles?.cache.has(id));
+  const lostVerified = Boolean(before.roles?.cache.has(layout.roles.verified));
+  // Strip on gaining a product role while unverified, or on losing Verified while holding one.
+  const toRemove = lostVerified ? held : gained;
+  if (toRemove.length === 0) return;
+  await after.roles.remove(toRemove, 'Product roles require verification').catch(() => undefined);
   await recordVerificationEvent(ctx, {
     type: 'role_stripped',
     discordUserId: after.id,
-    detail: `Removed ${gained.map((id) => `<@&${id}>`).join(', ')} until the member verifies.`,
+    detail: `Removed ${toRemove.map((id) => `<@&${id}>`).join(', ')} until the member verifies.`,
   });
 }

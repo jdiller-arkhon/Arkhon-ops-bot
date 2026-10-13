@@ -124,8 +124,9 @@ Summary of the model:
 - Role order (top to bottom): the bot's own role, Arkhon Team, Moderator, Certa Staff, Argus Staff,
   Certa User, Argus User, Verified (lowest so product colors show). The bot's role must be at the top; it can only manage roles below it.
 - **Arkhon Team** is staff for every product (tickets, /ticket, /mod). **Certa/Argus Staff** handle
-  their product's tickets. **Moderator** can use /mod and sees product channels but does not handle
-  tickets. Administrators pass every check. Staff permissions (Manage Messages, Timeout Members) make
+  their product's tickets. **Moderator** can use /mod, /member lookup|find and /security, and sees product
+  channels, but does not handle tickets: Manage Threads is denied in SUPPORT and #ticket-archive is
+  hidden from them. Administrators pass every check. Staff permissions (Manage Messages, Timeout Members) make
   `/ticket` and `/mod` visible; the bot also checks roles on every action.
 - The server is gated: @everyone sees only #welcome, #rules and #verify. **Verified** (granted when a
   member links their member ID) unlocks the rest; #verify hides itself from verified members.

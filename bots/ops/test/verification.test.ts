@@ -15,6 +15,11 @@ import {
   snowflakeTimestamp,
 } from '../src/verification/shield.js';
 import { handleMemberWebhook } from '../src/verification/webhook.js';
+import { CommunityApiError } from '../src/verification/api.js';
+import {
+  reconcileMemberLinks,
+  sweepUnverifiedProductRoles,
+} from '../src/verification/reconcile.js';
 import { fakeMember, fakeVerificationContext, WEBHOOK_SECRET } from './verification-fakes.js';
 
 const DISCORD_ID = '600000000000000001';
@@ -166,7 +171,7 @@ describe('member links', () => {
   });
 
   it('strips product roles from unverified members but not from verified ones or staff', async () => {
-    const f = fakeVerificationContext();
+    const f = fakeVerificationContext({ api: {} });
     const before = fakeMember(DISCORD_ID);
     const after = fakeMember(DISCORD_ID, [f.roles.user.certa]);
     await guardProductRoles(f.ctx, before as never, after as never);
@@ -188,6 +193,81 @@ describe('member links', () => {
       staff as never,
     );
     expect(staff.roles.cache.has(f.roles.user.certa)).toBe(true);
+  });
+});
+
+describe('role guard and reconciliation', () => {
+  it('removes product roles when a member loses Verified', async () => {
+    const f = fakeVerificationContext({ api: {} });
+    const before = fakeMember(DISCORD_ID, [f.roles.verified, f.roles.user.argus]);
+    const after = fakeMember(DISCORD_ID, [f.roles.user.argus]);
+    await guardProductRoles(f.ctx, before as never, after as never);
+    expect(after.roles.cache.has(f.roles.user.argus)).toBe(false);
+  });
+
+  it('does not enforce product-role gating when verification is not configured', async () => {
+    const f = fakeVerificationContext();
+    const after = fakeMember(DISCORD_ID, [f.roles.user.certa]);
+    await guardProductRoles(f.ctx, fakeMember(DISCORD_ID) as never, after as never);
+    expect(after.roles.cache.has(f.roles.user.certa)).toBe(true);
+  });
+
+  it('reconciles with the website: drops links it no longer has, keeps the rest', async () => {
+    const getLink = vi.fn(async (id: string) => {
+      if (id === OTHER_ID) throw new CommunityApiError('not_linked', 404, 'no');
+      return { memberId: MEMBER_ID, accountRole: 'pilot', linkedAt: new Date().toISOString() };
+    });
+    const f = fakeVerificationContext({ api: { getLink } });
+    const kept = fakeMember(DISCORD_ID);
+    const gone = fakeMember(OTHER_ID, [f.roles.verified]);
+    f.members.set(DISCORD_ID, kept);
+    f.members.set(OTHER_ID, gone);
+    f.links.set(DISCORD_ID, {
+      discordUserId: DISCORD_ID,
+      memberId: MEMBER_ID,
+      accountRole: 'pilot',
+      linkedAt: new Date(),
+    });
+    f.links.set(OTHER_ID, {
+      discordUserId: OTHER_ID,
+      memberId: 'ARK-00000-00000',
+      accountRole: null,
+      linkedAt: new Date(),
+    });
+
+    const summary = await reconcileMemberLinks(f.ctx, f.guild as never);
+    expect(summary).toMatchObject({ checked: 2, unlinked: 1, aborted: false });
+    expect(f.links.has(OTHER_ID)).toBe(false);
+    expect(gone.roles.cache.has(f.roles.verified)).toBe(false);
+    expect(kept.roles.cache.has(f.roles.verified)).toBe(true);
+  });
+
+  it('never removes anyone while the website is unreachable', async () => {
+    const getLink = vi.fn(async () => {
+      throw new CommunityApiError('unavailable', 0, 'down');
+    });
+    const f = fakeVerificationContext({ api: { getLink } });
+    f.links.set(DISCORD_ID, {
+      discordUserId: DISCORD_ID,
+      memberId: MEMBER_ID,
+      accountRole: null,
+      linkedAt: new Date(),
+    });
+    const summary = await reconcileMemberLinks(f.ctx, f.guild as never);
+    expect(summary.aborted).toBe(true);
+    expect(f.links.has(DISCORD_ID)).toBe(true);
+  });
+
+  it('sweeps product roles from unverified non-staff members only', async () => {
+    const f = fakeVerificationContext({ api: {} });
+    const legacy = fakeMember(DISCORD_ID, [f.roles.user.certa]);
+    const verified = fakeMember(OTHER_ID, [f.roles.verified, f.roles.user.certa]);
+    const staff = fakeMember('600000000000000003', [f.roles.staff.argus, f.roles.user.argus]);
+    for (const m of [legacy, verified, staff]) f.members.set(m.id, m);
+    expect(await sweepUnverifiedProductRoles(f.ctx, f.guild as never)).toBe(1);
+    expect(legacy.roles.cache.has(f.roles.user.certa)).toBe(false);
+    expect(verified.roles.cache.has(f.roles.user.certa)).toBe(true);
+    expect(staff.roles.cache.has(f.roles.user.argus)).toBe(true);
   });
 });
 
@@ -251,6 +331,20 @@ describe('member webhook', () => {
     expect((await handleMemberWebhook(f.ctx, Buffer.from(body), sign(body))).status).toBe(200);
     expect(f.links.has(DISCORD_ID)).toBe(false);
     expect(member.roles.cache.has(f.roles.verified)).toBe(false);
+  });
+
+  it('ignores a late unlink for an older member ID', async () => {
+    const f = fakeVerificationContext();
+    f.members.set(DISCORD_ID, fakeMember(DISCORD_ID));
+    await handleMemberWebhook(f.ctx, Buffer.from(linked('evt_x')), sign(linked('evt_x')));
+    const body = JSON.stringify({
+      id: 'evt_y',
+      type: 'member.unlinked',
+      occurredAt: new Date().toISOString(),
+      data: { discordUserId: DISCORD_ID, memberId: 'ARK-00000-00000' },
+    });
+    expect((await handleMemberWebhook(f.ctx, Buffer.from(body), sign(body))).status).toBe(200);
+    expect(f.links.get(DISCORD_ID)?.memberId).toBe(MEMBER_ID);
   });
 
   it('rejects bad signatures, stale timestamps and invalid payloads without side effects', async () => {

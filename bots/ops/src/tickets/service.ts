@@ -75,8 +75,15 @@ function ticketChannelName(ticketId: number, product: Product, username: string)
 
 async function findOpenTicket(ctx: OpsContext, userId: string, product: Product) {
   return ctx.prisma.opsTicket.findFirst({
-    where: { userId, product, status: { in: ['open', 'waiting'] }, channelId: { not: null } },
+    // Includes tickets whose channel is still being created, so a double submit cannot open two.
+    where: { userId, product, status: { in: ['open', 'waiting'] } },
   });
+}
+
+function alreadyOpenMessage(ticket: OpsTicket, product: Product): string {
+  return ticket.channelId
+    ? `You already have an open ${productLabel(product)} ticket: ${channelUrl(ticket.guildId, ticket.channelId)}`
+    : `Your ${productLabel(product)} ticket is still being created. Give it a few seconds.`;
 }
 
 // ---------------------------------------------------------------- opening
@@ -89,11 +96,7 @@ export async function showTicketModal(
   requireGuildMember(interaction, ctx.config);
   ctx.layout.require();
   const existing = await findOpenTicket(ctx, interaction.user.id, product);
-  if (existing?.channelId) {
-    throw new UserFacingError(
-      `You already have an open ${productLabel(product)} ticket: ${channelUrl(existing.guildId, existing.channelId)}`,
-    );
-  }
+  if (existing) throw new UserFacingError(alreadyOpenMessage(existing, product));
   await interaction.showModal(buildTicketModal(product));
 }
 
@@ -107,11 +110,7 @@ export async function createTicketFromModal(
   await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
   const existing = await findOpenTicket(ctx, member.id, product);
-  if (existing?.channelId) {
-    throw new UserFacingError(
-      `You already have an open ${productLabel(product)} ticket: ${channelUrl(existing.guildId, existing.channelId)}`,
-    );
-  }
+  if (existing) throw new UserFacingError(alreadyOpenMessage(existing, product));
 
   const subject = interaction.fields.getTextInputValue(TICKET_FIELDS.subject).trim();
   const description = interaction.fields.getTextInputValue(TICKET_FIELDS.description).trim();
@@ -289,6 +288,16 @@ async function createPrivateChannel(
         type: OverwriteType.Role,
         allow: [...participant, PermissionFlagsBits.ManageMessages],
       },
+      // Arkhon Team is staff for every product.
+      ...(layout.roles.team
+        ? [
+            {
+              id: layout.roles.team,
+              type: OverwriteType.Role,
+              allow: [...participant, PermissionFlagsBits.ManageMessages],
+            },
+          ]
+        : []),
       {
         id: me.id,
         type: OverwriteType.Member,
@@ -313,6 +322,13 @@ export async function handleStaffAction(
   const product = ticketProduct(ticket);
   const staff = requireStaff(interaction, ctx, product);
   const from = ticketStatus(ticket);
+
+  // A close that failed part-way (archive post, lock, delete) can be finished by pressing Close
+  // again on the still-open thread or channel.
+  if (action === 'close' && from === 'closed') {
+    await closeTicket(interaction, ticket, staff, ctx, { alreadyClosed: true });
+    return;
+  }
 
   let to: TicketStatus;
   try {
@@ -355,118 +371,164 @@ async function closeTicket(
   ticket: OpsTicket,
   staff: GuildMember,
   ctx: OpsContext,
+  options: { alreadyClosed?: boolean } = {},
 ): Promise<void> {
   await interaction.deferReply({ flags: MessageFlags.Ephemeral });
   const layout = ctx.layout.require();
   const product = ticketProduct(ticket);
-  const closedAt = new Date();
-  const result = await ctx.prisma.opsTicket.updateMany({
-    where: { id: ticket.id, status: { in: ['open', 'waiting'] } },
-    data: { status: 'closed', closedAt, closedById: staff.id },
-  });
-  if (result.count === 0) throw new UserFacingError('This ticket is already closed.');
+  const interactionChannel = interaction.channel;
+  if (!interactionChannel || interactionChannel.isDMBased())
+    throw new Error('Ticket close clicked outside a guild channel');
+  const channel: GuildTextBasedChannel = interactionChannel;
+
+  const closedAt = options.alreadyClosed ? (ticket.closedAt ?? new Date()) : new Date();
+  if (!options.alreadyClosed) {
+    const result = await ctx.prisma.opsTicket.updateMany({
+      where: { id: ticket.id, status: { in: ['open', 'waiting'] } },
+      data: { status: 'closed', closedAt, closedById: staff.id },
+    });
+    if (result.count === 0) throw new UserFacingError('This ticket is already closed.');
+  } else if (channel.isThread() && channel.locked) {
+    throw new UserFacingError('This ticket is already closed.');
+  }
   if (ticket.channelId) activeTicketChannels.delete(ticket.channelId);
 
-  const channel = interaction.channel;
-  if (!channel || channel.isDMBased())
-    throw new Error('Ticket close clicked outside a guild channel');
+  // Whatever happens below, the conversation is shut: threads are always locked and archived.
+  // A private channel is only deleted once its transcript is safely posted to the archive.
+  let archived = false;
+  try {
+    archived = await archiveTranscript();
+  } finally {
+    await shutTicketChannel(ctx, channel, ticket.id, archived);
+  }
 
-  const [opener, claimer, messages] = await Promise.all([
-    ctx.client.users.fetch(ticket.userId).catch(() => null),
-    ticket.claimedById ? ctx.client.users.fetch(ticket.claimedById).catch(() => null) : null,
-    fetchTranscriptMessages(channel),
-  ]);
-  const transcript = formatTranscript(
-    {
-      id: ticket.id,
-      product,
-      subject: ticket.subject,
-      description: ticket.description,
-      appVersion: ticket.appVersion,
-      userId: ticket.userId,
-      userTag: opener?.tag ?? ticket.userId,
-      createdAt: ticket.createdAt,
-      closedAt,
-      closedByTag: staff.user.tag,
-      claimedByTag: claimer?.tag ?? (ticket.claimedById ? ticket.claimedById : null),
-    },
-    messages,
-  );
-  const fileName = `ticket-${ticket.id}-${product}.txt`;
-  const file = () => new AttachmentBuilder(Buffer.from(transcript, 'utf8'), { name: fileName });
+  async function archiveTranscript(): Promise<boolean> {
+    const [opener, claimer, messages] = await Promise.all([
+      ctx.client.users.fetch(ticket.userId).catch(() => null),
+      ticket.claimedById ? ctx.client.users.fetch(ticket.claimedById).catch(() => null) : null,
+      fetchTranscriptMessages(channel),
+    ]);
+    const transcript = formatTranscript(
+      {
+        id: ticket.id,
+        product,
+        subject: ticket.subject,
+        description: ticket.description,
+        appVersion: ticket.appVersion,
+        userId: ticket.userId,
+        userTag: opener?.tag ?? ticket.userId,
+        createdAt: ticket.createdAt,
+        closedAt,
+        closedByTag: staff.user.tag,
+        claimedByTag: claimer?.tag ?? (ticket.claimedById ? ticket.claimedById : null),
+      },
+      messages,
+    );
+    const fileName = `ticket-${ticket.id}-${product}.txt`;
+    const file = () => new AttachmentBuilder(Buffer.from(transcript, 'utf8'), { name: fileName });
 
-  let dmDelivered = false;
-  if (opener) {
-    try {
-      await opener.send({
-        embeds: [
-          arkhonEmbed({
-            product,
-            title: `Your ${productLabel(product)} ticket #${ticket.id} was closed`,
-            description: `**${ticket.subject}**\n\nA full transcript is attached. If you still need help, open a new ticket from the support channel.`,
-          }),
-        ],
-        files: [file()],
-      });
-      dmDelivered = true;
-    } catch (error) {
-      ctx.logger.info(
-        { err: error, ticketId: ticket.id, userId: ticket.userId },
-        'could not DM transcript',
+    let dmDelivered = false;
+    if (opener) {
+      try {
+        await opener.send({
+          embeds: [
+            arkhonEmbed({
+              product,
+              title: `Your ${productLabel(product)} ticket #${ticket.id} was closed`,
+              description: `**${ticket.subject}**\n\nA full transcript is attached. If you still need help, open a new ticket from the support channel.`,
+            }),
+          ],
+          files: [file()],
+        });
+        dmDelivered = true;
+      } catch (error) {
+        ctx.logger.info(
+          { err: error, ticketId: ticket.id, userId: ticket.userId },
+          'could not DM transcript',
+        );
+      }
+    }
+
+    let posted = false;
+    const archive = await ctx.client.channels
+      .fetch(layout.channels.ticketArchive)
+      .catch(() => null);
+    if (archive?.isSendable()) {
+      try {
+        await archive.send({
+          embeds: [
+            arkhonEmbed({
+              product,
+              title: `Ticket #${ticket.id} closed: ${ticket.subject}`,
+              fields: [
+                { name: 'User', value: `<@${ticket.userId}>`, inline: true },
+                {
+                  name: 'Claimed by',
+                  value: ticket.claimedById ? `<@${ticket.claimedById}>` : 'unclaimed',
+                  inline: true,
+                },
+                { name: 'Closed by', value: `${staff}`, inline: true },
+                { name: 'Messages', value: String(messages.length), inline: true },
+                {
+                  name: 'Transcript DM',
+                  value: dmDelivered ? 'delivered' : 'failed (DMs closed)',
+                  inline: true,
+                },
+              ],
+              timestamp: closedAt,
+            }),
+          ],
+          files: [file()],
+          allowedMentions: { parse: [] },
+        });
+        posted = true;
+      } catch (error) {
+        ctx.logger.error(
+          { err: error, ticketId: ticket.id },
+          'could not post ticket transcript to the archive',
+        );
+      }
+    } else {
+      ctx.logger.error(
+        { channelId: layout.channels.ticketArchive },
+        'ticket archive channel unavailable',
       );
     }
-  }
 
-  const archive = await ctx.client.channels.fetch(layout.channels.ticketArchive);
-  if (archive?.isSendable()) {
-    await archive.send({
-      embeds: [
-        arkhonEmbed({
-          product,
-          title: `Ticket #${ticket.id} closed: ${ticket.subject}`,
-          fields: [
-            { name: 'User', value: `<@${ticket.userId}>`, inline: true },
-            {
-              name: 'Claimed by',
-              value: ticket.claimedById ? `<@${ticket.claimedById}>` : 'unclaimed',
-              inline: true,
-            },
-            { name: 'Closed by', value: `${staff}`, inline: true },
-            { name: 'Messages', value: String(messages.length), inline: true },
-            {
-              name: 'Transcript DM',
-              value: dmDelivered ? 'delivered' : 'failed (DMs closed)',
-              inline: true,
-            },
-          ],
-          timestamp: closedAt,
-        }),
-      ],
-      files: [file()],
-      allowedMentions: { parse: [] },
-    });
-  } else {
-    ctx.logger.error(
-      { channelId: layout.channels.ticketArchive },
-      'ticket archive channel unavailable',
+    ctx.logger.info(
+      { ticketId: ticket.id, staffId: staff.id, messages: messages.length, dmDelivered, posted },
+      'ticket closed',
     );
+    await interaction.editReply(
+      posted
+        ? `Ticket closed. Transcript ${dmDelivered ? 'sent to the user and ' : ''}posted to <#${layout.channels.ticketArchive}>.`
+        : `Ticket closed, but the transcript could not be posted to <#${layout.channels.ticketArchive}>. ${channel.isThread() ? 'The thread is locked; its history is kept.' : 'The channel was kept so nothing is lost. Fix the archive channel, then press Close again.'}`,
+    );
+    await channel
+      .send({ content: `🔒 Ticket closed by ${staff}.`, allowedMentions: { parse: [] } })
+      .catch(() => undefined);
+    return posted;
   }
+}
 
-  ctx.logger.info(
-    { ticketId: ticket.id, staffId: staff.id, messages: messages.length, dmDelivered },
-    'ticket closed',
-  );
-  await interaction.editReply(
-    `Ticket closed. Transcript ${dmDelivered ? 'sent to the user and ' : ''}posted to <#${layout.channels.ticketArchive}>.`,
-  );
-  await channel.send({ content: `🔒 Ticket closed by ${staff}.`, allowedMentions: { parse: [] } });
-
-  if (channel.isThread()) {
-    await channel.setLocked(true, 'Ticket closed');
-    await channel.setArchived(true, 'Ticket closed');
-  } else {
-    // Private channels are removed once the transcript is safely archived.
-    await channel.delete(`Ticket #${ticket.id} closed`);
+async function shutTicketChannel(
+  ctx: OpsContext,
+  channel: GuildTextBasedChannel,
+  ticketId: number,
+  archived: boolean,
+): Promise<void> {
+  try {
+    if (channel.isThread()) {
+      await channel.setLocked(true, 'Ticket closed');
+      await channel.setArchived(true, 'Ticket closed');
+    } else if (archived) {
+      await channel.delete(`Ticket #${ticketId} closed`);
+    }
+  } catch (error) {
+    ctx.logger.error(
+      { err: error, ticketId },
+      'could not lock or remove the ticket channel; press Close again',
+    );
   }
 }
 

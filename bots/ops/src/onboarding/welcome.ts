@@ -13,14 +13,14 @@ export function buildWelcomeEmbed(member: GuildMember, layout: ServerLayout) {
   return arkhonEmbed({
     title: `Welcome to ${member.guild.name}`,
     description: [
-      `Hi ${member.user.username}, thanks for joining the Arkhon Industries pilot community.`,
+      `Hi ${member.user.username}, thanks for joining the Arkhon Industries pilot community: support, release notes and discussion for **Certa** (drone flight operations and compliance logbook) and **Argus**.`,
       '',
-      'This server covers two products:',
-      `• **Certa** — drone flight operations and compliance logbook. [Open the Certa channels](${channelLink(guildId, channels.home.certa)})`,
-      `• **Argus** — [Open the Argus channels](${channelLink(guildId, channels.home.argus)})`,
+      `**First, verify your membership** in [#verify](${channelLink(guildId, channels.verify)}). It takes a minute:`,
+      '1. Copy your member ID from arkhonindustries.com → Settings.',
+      '2. Click **Verify membership** in #verify and paste it.',
+      '3. Approve the request on arkhonindustries.com.',
       '',
-      `Pick the products you use in [#start-here](${channelLink(guildId, channels.startHere)}) to unlock their channels.`,
-      `Need help? Open a private ticket in [#support](${channelLink(guildId, channels.support)}).`,
+      `Once verified, the rest of the server unlocks: pick your products in [#start-here](${channelLink(guildId, channels.startHere)}) and open private tickets in [#support](${channelLink(guildId, channels.support)}).`,
     ].join('\n'),
   });
 }

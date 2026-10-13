@@ -87,6 +87,10 @@ export function fakeVerificationContext(options: { api?: Partial<CommunityApi> }
         links.set(where.discordUserId, next);
         return next;
       },
+      deleteMany: async ({ where }: { where: { discordUserId: string } }) => ({
+        count: links.delete(where.discordUserId) ? 1 : 0,
+      }),
+      findMany: async () => [...links.values()],
       delete: async ({ where }: { where: { discordUserId: string } }) => {
         const row = links.get(where.discordUserId);
         links.delete(where.discordUserId);
@@ -101,6 +105,9 @@ export function fakeVerificationContext(options: { api?: Partial<CommunityApi> }
       },
     },
     opsWebhookEvent: {
+      findUnique: async ({ where }: { where: { id: string } }) =>
+        webhookIds.has(where.id) ? { id: where.id } : null,
+      deleteMany: async () => ({ count: 0 }),
       create: async ({ data }: { data: { id: string } }) => {
         if (webhookIds.has(data.id)) throw unique();
         webhookIds.add(data.id);
@@ -111,7 +118,9 @@ export function fakeVerificationContext(options: { api?: Partial<CommunityApi> }
 
   const guild = {
     id: validOpsEnv.DISCORD_GUILD_ID,
+    roles: { cache: new Map<string, { members: Map<string, FakeMember> }>() },
     members: {
+      cache: members,
       fetch: async (id: string) => members.get(id) ?? Promise.reject(new Error('Unknown Member')),
     },
     setIncidentActions: vi.fn(async () => ({})),

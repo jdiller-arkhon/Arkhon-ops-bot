@@ -12,6 +12,7 @@ import { onTicketMessage } from './tickets/service.js';
 import { runLayoutTasks } from './startup.js';
 import { LayoutStore } from './layout.js';
 import { CommunityApi } from './verification/api.js';
+import { reconcileMemberLinks } from './verification/reconcile.js';
 import { guardProductRoles, onMemberJoinShield } from './verification/service.js';
 import { AttemptLimiter, RaidShield } from './verification/shield.js';
 
@@ -82,6 +83,16 @@ async function main(): Promise<void> {
     }
     if (ctx.layout.current) {
       await runLayoutTasks(ctx, guild);
+      if (ctx.security.api) {
+        // Website events are best-effort; this keeps Discord in line with the website.
+        const every = config.verification.reconcileMinutes * 60_000;
+        const run = () =>
+          void reconcileMemberLinks(ctx, guild).catch((error: unknown) =>
+            logger.error({ err: error }, 'member reconciliation failed'),
+          );
+        setTimeout(run, 60_000).unref();
+        setInterval(run, every).unref();
+      }
     } else {
       logger.warn(
         { missing: ctx.layout.missing },

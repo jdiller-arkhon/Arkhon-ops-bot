@@ -23,7 +23,7 @@ const ERROR_MESSAGES: Partial<Record<CommunityApiError['code'], string>> = {
   member_not_found:
     'No Arkhon account has that member ID. Check it on arkhonindustries.com → Settings.',
   member_already_linked:
-    'That member ID is already linked to a different Discord account. If that is not you, open a support ticket or unlink it from your account settings.',
+    'That member ID is already linked to a different Discord account. If it is yours, unlink it in your account settings on arkhonindustries.com and verify again. If you did not link it, contact the Arkhon team through arkhonindustries.com.',
   discord_already_linked:
     'This Discord account is already linked to a different member ID. Unlink it from that account first.',
   rate_limited: 'Too many attempts. Please wait a few minutes and try again.',
@@ -54,14 +54,15 @@ export async function handleVerifyStart(
     );
   }
   if (ctx.security.raid.isLocked()) {
-    await recordVerificationEvent(ctx, { type: 'blocked_lockdown', discordUserId: member.id });
+    void recordVerificationEvent(ctx, { type: 'blocked_lockdown', discordUserId: member.id });
     throw new UserFacingError(
       'Verification is paused for a few minutes while the team handles a surge of joins. Please try again shortly.',
     );
   }
   const { minAccountAgeDays, maxAttemptsPerHour } = ctx.config.verification;
   if (!isAccountOldEnough(member.id, minAccountAgeDays)) {
-    await recordVerificationEvent(ctx, {
+    // Not awaited: the reply must beat Discord's 3-second window even during a raid.
+    void recordVerificationEvent(ctx, {
       type: 'blocked_age',
       discordUserId: member.id,
       detail: `Account created <t:${Math.floor(member.user.createdTimestamp / 1000)}:R>; minimum is ${minAccountAgeDays} days.`,
@@ -72,7 +73,7 @@ export async function handleVerifyStart(
   }
   if (!ctx.security.attempts.tryConsume(member.id)) {
     const minutes = Math.ceil(ctx.security.attempts.retryAfterMs(member.id) / 60_000);
-    await recordVerificationEvent(ctx, {
+    void recordVerificationEvent(ctx, {
       type: 'blocked_rate',
       discordUserId: member.id,
       detail: `More than ${maxAttemptsPerHour} attempts in an hour.`,

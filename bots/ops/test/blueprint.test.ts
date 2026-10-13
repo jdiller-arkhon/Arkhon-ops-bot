@@ -9,6 +9,7 @@ import {
   mergeOverwrites,
 } from '../src/setup/blueprint.js';
 import { RULES } from '../src/setup/content.js';
+import { readRoleIcon } from '../src/setup/apply.js';
 import { resolveOverwrites } from '../src/setup/apply.js';
 
 const roleKeys = new Set(BLUEPRINT.roles.map((r) => r.key));
@@ -133,6 +134,17 @@ describe('blueprint integrity', () => {
         ),
       ).toBe(true);
     }
+  });
+
+  it('has a valid role icon for every role (PNG, 128×128, under Discord’s 256 KB limit)', async () => {
+    for (const role of BLUEPRINT.roles) {
+      const png = await readRoleIcon(role.icon);
+      expect(png.subarray(0, 8).toString('hex'), role.icon).toBe('89504e470d0a1a0a');
+      expect(png.readUInt32BE(16), `${role.icon} width`).toBe(128);
+      expect(png.readUInt32BE(20), `${role.icon} height`).toBe(128);
+      expect(png.length).toBeLessThan(256 * 1024);
+    }
+    expect(new Set(BLUEPRINT.roles.map((r) => r.icon)).size).toBe(BLUEPRINT.roles.length);
   });
 
   it('ships non-empty rules', () => {

@@ -9,6 +9,8 @@ export interface GuildSnapshot {
   /** Ids stored by previous /setup runs, keyed by resource key. */
   stored: Record<string, string>;
   community: boolean;
+  /** Boost Level 2 "Role Icons" feature. */
+  roleIcons?: boolean;
 }
 
 export type ResourceKind = 'role' | 'category' | 'channel';
@@ -26,6 +28,7 @@ export interface PlanItem {
 export interface BuildPlan {
   items: PlanItem[];
   community: boolean;
+  roleIcons: boolean;
 }
 
 /**
@@ -145,7 +148,7 @@ export function planBuildout(snapshot: GuildSnapshot, blueprint: Blueprint = BLU
     }
   }
 
-  return { items, community: snapshot.community };
+  return { items, community: snapshot.community, roleIcons: Boolean(snapshot.roleIcons) };
 }
 
 export function summarizePlan(

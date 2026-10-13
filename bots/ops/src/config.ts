@@ -63,6 +63,7 @@ export const opsEnvSchema = baseEnvSchema
     // Alt and raid shield
     VERIFY_MIN_ACCOUNT_AGE_DAYS: z.coerce.number().int().min(0).max(365).default(7),
     VERIFY_MAX_ATTEMPTS_PER_HOUR: z.coerce.number().int().min(1).max(50).default(5),
+    VERIFY_RECONCILE_MINUTES: z.coerce.number().int().min(5).max(1440).default(30),
     RAID_JOIN_THRESHOLD: z.coerce.number().int().min(2).max(500).default(10),
     RAID_JOIN_WINDOW_SECONDS: z.coerce.number().int().min(10).max(3600).default(60),
     RAID_LOCKDOWN_MINUTES: z.coerce.number().int().min(1).max(1440).default(30),
@@ -141,6 +142,7 @@ export const opsEnvSchema = baseEnvSchema
       enabled: Boolean(env.ARKHON_COMMUNITY_API_TOKEN && env.MEMBER_WEBHOOK_SECRET),
       minAccountAgeDays: env.VERIFY_MIN_ACCOUNT_AGE_DAYS,
       maxAttemptsPerHour: env.VERIFY_MAX_ATTEMPTS_PER_HOUR,
+      reconcileMinutes: env.VERIFY_RECONCILE_MINUTES,
     },
     raid: {
       joinThreshold: env.RAID_JOIN_THRESHOLD,

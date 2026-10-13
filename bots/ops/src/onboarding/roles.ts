@@ -57,7 +57,11 @@ export async function handleRoleButton(
 ): Promise<void> {
   const member = requireGuildMember(interaction, ctx.config);
   const layout = ctx.layout.require();
-  if (!member.roles.cache.has(layout.roles.verified) && !isStaff(member, layout)) {
+  if (
+    ctx.security.api &&
+    !member.roles.cache.has(layout.roles.verified) &&
+    !isStaff(member, layout)
+  ) {
     throw new UserFacingError(
       `Verify your Arkhon membership in <#${layout.channels.verify}> first.`,
     );

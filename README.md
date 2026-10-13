@@ -59,11 +59,13 @@ PostgreSQL 15 in prod), Vitest, ESLint + Prettier, pino, Docker.
    https://discord.com/oauth2/authorize?client_id=YOUR_CLIENT_ID&scope=bot%20applications.commands&permissions=8
    ```
 
-   After the build you can switch to least privilege: remove Administrator from the bot's role and
-   grant View Channels, Send Messages, Send Messages in Threads, Create Private Threads, Manage
-   Threads, Manage Channels, Manage Roles, Manage Messages, Moderate Members, Manage Server
-   (AutoMod), Embed Links, Attach Files, Read Message History, Add Reactions and Mention Everyone.
-   `/setup status` tells you if anything is missing.
+   After the build you can switch to least privilege for day-to-day running: remove Administrator
+   from the bot's role and grant View Channels, Send Messages, Send Messages in Threads, Create
+   Private Threads, Manage Threads, Manage Channels, Manage Roles, Manage Messages, Moderate
+   Members, Manage Server (AutoMod, invite pausing), Embed Links, Attach Files, Read Message History,
+   Add Reactions and Mention Everyone. **Re-running `/setup server` needs Administrator again**,
+   because the bot must hold every permission the blueprint grants to roles and channels;
+   `/setup status` lists exactly what is missing.
 
 6. In **Server Settings → Roles**, drag the bot's role to the **top** of the list. It can only
    create and manage roles below its own.
@@ -101,8 +103,8 @@ What it builds (defined in `bots/ops/src/setup/blueprint.ts`):
 | Category              | Channels                                                                                                                   | Who can see it                                               |
 | --------------------- | -------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------ |
 | **ARKHON INDUSTRIES** | 👋 welcome · 📜 rules · 🔐 verify · 🚀 start-here · 📣 announcements                                                       | Everyone sees welcome, rules, verify; the rest need Verified |
-| **COMMUNITY**         | 💬 general · 🙋 introductions · 📸 showcase · 📰 industry-news · 💡 feedback (forum) · 🔊 Lounge · 🎙️ Office Hours (stage) | Everyone                                                     |
-| **SUPPORT**           | 🎫 support (ticket panel; private ticket threads)                                                                          | Everyone; tickets are private                                |
+| **COMMUNITY**         | 💬 general · 🙋 introductions · 📸 showcase · 📰 industry-news · 💡 feedback (forum) · 🔊 Lounge · 🎙️ Office Hours (stage) | Verified members                                             |
+| **SUPPORT**           | 🎫 support (ticket panel; private ticket threads)                                                                          | Verified members; tickets are private                        |
 | **CERTA**             | 🛩️ certa-general · 🧭 certa-help · 📋 certa-compliance                                                                     | Certa User, Certa Staff, team, mods                          |
 | **ARGUS**             | 👁️ argus-general · 🧭 argus-help                                                                                           | Argus User, Argus Staff, team, mods                          |
 | **STAFF**             | 🛡️ staff-lounge · 🗂️ ticket-archive · 🔨 mod-log · 🔒 Staff Room                                                           | Staff roles only                                             |
@@ -112,6 +114,9 @@ What it builds (defined in `bots/ops/src/setup/blueprint.ts`):
   `sansBold`, `sansItalic`, `smallCaps` or `plain` and re-run; existing channels are renamed in place.
 - **Roles**, branded and ordered: Arkhon Team, Moderator, Certa Staff, Argus Staff, Certa User,
   Argus User, Verified, with colors and permissions per role.
+- **Role icons**: a custom icon for every role (`bots/ops/assets/role-icons`, SVG sources in `src/`):
+  solid badges for staff, outlined badges for members, a check for Verified. Discord shows role
+  icons only on servers with Boost Level 2; until then the build skips them and says so.
 - **Server settings**: Medium verification, explicit-content filter for all members, mentions-only
   notifications, a curated @everyone permission set, and join messages off (members get a DM).
 - **Community** mode, so announcements can be followed, the feedback forum requires a product tag,
@@ -146,22 +151,25 @@ Settings → Member ID).
 
 Security model ("best standard"):
 
-| Control            | Detail                                                                                                                     |
-| ------------------ | -------------------------------------------------------------------------------------------------------------------------- |
-| Member ID          | Crockford Base32, 9 random chars + Luhn mod N check char. Random, not sequential. Identifies an account; not a credential. |
-| Proof of ownership | Out-of-band approval on the website while signed in; 256-bit single-use token, 15 min expiry, stored hashed.               |
-| One-to-one         | One member ID per Discord account and vice versa (unique constraints on both sides).                                       |
-| Service auth       | Bot → website: dedicated bearer token, constant-time compare, fails closed.                                                |
-| Webhooks           | Website → bot: HMAC-SHA256 over `timestamp.body`, 5-minute window, event-id de-duplication (replay-proof).                 |
-| Alt shield         | Minimum Discord account age (default 7 days), per-user attempt limit (default 5/hour).                                     |
-| Raid shield        | Join spike (default 10 in 60s) starts a lockdown: verification closed, invites paused via Discord's incident actions.      |
-| Role guard         | Product roles added to an unverified member (by hand or Onboarding) are removed automatically.                             |
-| Audit              | Every link, unlink, block and lockdown is stored (`ops_verification_events`) and posted to `#mod-log`.                     |
+| Control            | Detail                                                                                                                                                                                                                                                        |
+| ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Member ID          | Crockford Base32, 9 random chars + Luhn mod N check char. Random, not sequential. Identifies an account; not a credential.                                                                                                                                    |
+| Proof of ownership | Out-of-band approval on the website while signed in; 256-bit single-use token, 15 min expiry, stored hashed.                                                                                                                                                  |
+| One-to-one         | One member ID per Discord account and vice versa (unique constraints on both sides).                                                                                                                                                                          |
+| Service auth       | Bot → website: dedicated bearer token, constant-time compare, fails closed.                                                                                                                                                                                   |
+| Webhooks           | Website → bot: HMAC-SHA256 over `timestamp.body`, 5-minute window, event-id de-duplication (replay-proof).                                                                                                                                                    |
+| Alt shield         | Minimum Discord account age (default 7 days), per-user attempt limit (default 5/hour).                                                                                                                                                                        |
+| Raid shield        | Join spike (default 10 in 60s) starts a lockdown: verification closed, invites paused via Discord's incident actions.                                                                                                                                         |
+| Role guard         | Product roles added to an unverified member (by hand or Onboarding) are removed automatically.                                                                                                                                                                |
+| Reconciliation     | Every 30 min (`VERIFY_RECONCILE_MINUTES`) the bot re-checks every verified member with the website and removes access the website no longer grants (missed webhooks, suspended or closed accounts). It never removes anyone while the website is unreachable. |
+| Audit              | Every link, unlink, block and lockdown is stored (`ops_verification_events`) and posted to `#mod-log`.                                                                                                                                                        |
 
 Staff commands:
 
-- `/member lookup user` · `/member find member-id` · `/member unlink user reason` · `/member resync user`
-- `/security status` · `/security lockdown on [minutes] [reason]` · `/security lockdown off`
+- `/member lookup user` · `/member find member-id` (staff and Moderators)
+- `/member unlink user reason` · `/member resync user` (ticket staff, Arkhon Team, admins: these change
+  the member's link on the website)
+- `/security status` · `/security lockdown on [minutes] [reason]` · `/security lockdown off` (staff and Moderators)
 
 Support tickets show the opener's member ID (or "Not verified").
 

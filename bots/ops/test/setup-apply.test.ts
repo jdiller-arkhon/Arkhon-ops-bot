@@ -36,10 +36,14 @@ interface FakeChannel {
 }
 
 /** Just enough of a discord.js Guild for the executor, backed by maps. */
-function fakeGuild(opts: { allowCommunity?: boolean } = {}) {
+function fakeGuild(opts: { allowCommunity?: boolean; roleIcons?: boolean } = {}) {
   let next = 1000;
   const newId = () => String(next++);
-  const roles = new Map<string, { id: string; name: string; managed: boolean; position: number }>();
+  const roles = new Map<
+    string,
+    { id: string; name: string; managed: boolean; position: number; icon: string | null }
+  >();
+  const iconUploads: string[] = [];
   const channels = new Map<string, FakeChannel>();
   const calls = {
     onboarding: [] as unknown[],
@@ -48,7 +52,7 @@ function fakeGuild(opts: { allowCommunity?: boolean } = {}) {
   };
   const guild = {
     id: '1',
-    features: [] as string[],
+    features: (opts.roleIcons ? ['ROLE_ICONS'] : []) as string[],
     members: {
       fetchMe: async () => ({
         id: '999',
@@ -60,13 +64,23 @@ function fakeGuild(opts: { allowCommunity?: boolean } = {}) {
       everyone: { setPermissions: async () => void calls.everyonePerms++ },
       fetch: async () => new Collection([...roles]),
       create: async (data: { name: string }) => {
-        const role = { id: newId(), name: data.name, managed: false, position: 1 };
+        const role = {
+          id: newId(),
+          name: data.name,
+          managed: false,
+          position: 1,
+          icon: null as string | null,
+        };
         roles.set(role.id, role);
         return role;
       },
-      edit: async (id: string, data: { name: string }) => {
+      edit: async (id: string, data: { name?: string; icon?: Buffer }) => {
         const role = roles.get(id)!;
-        role.name = data.name;
+        if (data.name) role.name = data.name;
+        if (data.icon) {
+          role.icon = 'hash';
+          iconUploads.push(role.name);
+        }
         return role;
       },
       setPositions: async () => guild,
@@ -117,7 +131,7 @@ function fakeGuild(opts: { allowCommunity?: boolean } = {}) {
     fetchOnboarding: async () => ({ prompts: new Collection() }),
     editOnboarding: async (data: unknown) => void calls.onboarding.push(data),
   };
-  return { guild: guild as unknown as Guild, roles, channels, calls, raw: guild };
+  return { guild: guild as unknown as Guild, roles, channels, calls, raw: guild, iconUploads };
 }
 
 function fakeContext() {
@@ -221,6 +235,24 @@ describe('executeBuildout (in-memory guild)', () => {
     );
     expect(announcements?.type).toBe(ChannelType.GuildText);
     expect(ctx.layout.current).toBeDefined(); // features still work without Community
+  });
+
+  it('uploads custom role icons once when the server has Role Icons (Boost Level 2)', async () => {
+    const fake = fakeGuild({ roleIcons: true });
+    const { ctx } = fakeContext();
+    const report = await build(fake, ctx);
+    expect(fake.iconUploads).toHaveLength(BLUEPRINT.roles.length);
+    expect(report.skipped.some((s) => s.startsWith('Role icons'))).toBe(false);
+    await build(fake, ctx); // second run keeps the icons it already set
+    expect(fake.iconUploads).toHaveLength(BLUEPRINT.roles.length);
+  });
+
+  it('skips role icons without Boost Level 2 and says so', async () => {
+    const fake = fakeGuild();
+    const { ctx } = fakeContext();
+    const report = await build(fake, ctx);
+    expect(fake.iconUploads).toHaveLength(0);
+    expect(report.skipped).toContain('Role icons (need Boost Level 2; re-run after boosting)');
   });
 
   it('respects disabled options', async () => {
