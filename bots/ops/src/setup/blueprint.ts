@@ -2,11 +2,11 @@ import type { PermissionsString } from 'discord.js';
 import { styleName, type ChannelNameStyle } from './fonts.js';
 
 /**
- * Lettering for channel names (categories stay as written). "smallCaps" renders
- * "👋・welcome" as "👋・ᴡᴇʟᴄᴏᴍᴇ"; set to "plain" for normal text. Changing it and re-running
- * /setup server renames the existing channels in place.
+ * Lettering for channel names (categories stay as written). "monospace" renders
+ * "👋・welcome" as "👋・𝚠𝚎𝚕𝚌𝚘𝚖𝚎". Options: monospace, sansBold, sansItalic, smallCaps, plain
+ * (see fonts.ts). Changing it and re-running /setup server renames existing channels in place.
  */
-export const CHANNEL_NAME_STYLE: ChannelNameStyle = 'smallCaps';
+export const CHANNEL_NAME_STYLE: ChannelNameStyle = 'monospace';
 
 /**
  * The Arkhon server blueprint: every role, category and channel /setup server builds.
