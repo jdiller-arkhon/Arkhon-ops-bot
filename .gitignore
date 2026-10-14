@@ -8,3 +8,4 @@ prisma/*.db-journal
 coverage/
 .wrangler/
 worker-configuration.d.ts
+.dev.vars

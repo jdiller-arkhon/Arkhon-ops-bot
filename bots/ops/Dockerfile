@@ -36,5 +36,6 @@ USER node
 EXPOSE 3000
 HEALTHCHECK --interval=30s --timeout=5s --start-period=60s \
   CMD node -e "fetch('http://127.0.0.1:'+(process.env.WEBHOOK_PORT||3000)+'/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
-# exec replaces the shell so node is PID 1 and receives SIGTERM for a graceful shutdown.
-CMD ["sh", "-c", "node scripts/prisma.mjs migrate deploy && exec node bots/ops/dist/index.js"]
+# With DATABASE_URL, Prisma migrations run first; on Cloudflare (D1_BRIDGE_URL) the bot applies
+# prisma/d1-migrations itself. exec replaces the shell so node is PID 1 and receives SIGTERM.
+CMD ["sh", "-c", "set -e; if [ -n \"$DATABASE_URL\" ]; then node scripts/prisma.mjs migrate deploy; fi; exec node bots/ops/dist/index.js"]

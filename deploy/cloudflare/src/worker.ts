@@ -7,11 +7,16 @@
  *   - passes the Worker's secrets to the container as environment variables,
  *   - keeps the gateway connection alive: containers normally sleep when no HTTP traffic arrives,
  *     so activity expiry is ignored and a cron trigger starts the container after deploys or crashes,
- *   - restarts the container when the secrets change, so new values take effect within 5 minutes.
+ *   - restarts the container when the secrets change, so new values take effect within 5 minutes,
+ *   - serves the bot's database: queries the container sends to http://d1.internal run against the
+ *     Worker's D1 binding (see d1-bridge.ts), so no database outside Cloudflare is needed.
  *
  * Logging here uses console, which is how Workers logs reach `wrangler tail` and the dashboard.
  */
 import { Container } from '@cloudflare/containers';
+// Required for outboundByHost: the container's outbound requests are routed through this entrypoint.
+export { ContainerProxy } from '@cloudflare/containers';
+import { D1_BRIDGE_HOST } from '../../../packages/shared/src/d1-bridge.js';
 import {
   BOTS,
   INSTANCE_NAME,
@@ -21,12 +26,14 @@ import {
   missingRequired,
   type BotDeployment,
 } from './bots.js';
+import { handleD1BridgeRequest } from './d1-bridge.js';
 
 /** Storage key for the fingerprint of the configuration the running container started with. */
 const STARTED_WITH = 'startedWithEnv';
 
 interface Env {
   OPS_BOT: DurableObjectNamespace<OpsBot>;
+  DB: D1Database;
   [key: string]: unknown;
 }
 
@@ -79,6 +86,12 @@ export class OpsBot extends BotContainer {
     this.envVars = containerEnv(BOTS.ops, env);
   }
 }
+
+// The bot's database bridge, reachable only from inside the container. Assigned (not a static
+// class field) so it goes through Container's setter, which registers handlers by class name.
+OpsBot.outboundByHost = {
+  [D1_BRIDGE_HOST]: (request: Request, env: Env) => handleD1BridgeRequest(request, env.DB),
+};
 
 function instance(env: Env, bot: BotDeployment): DurableObjectStub<OpsBot> {
   return env[bot.binding].getByName(INSTANCE_NAME);

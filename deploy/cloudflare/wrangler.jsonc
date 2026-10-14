@@ -25,6 +25,16 @@
   },
   "migrations": [{ "tag": "v1", "new_sqlite_classes": ["OpsBot"] }],
 
+  // The bots' database (D1, created in the Cloudflare account). The bot applies
+  // prisma/d1-migrations itself on startup.
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "arkhon-bots",
+      "database_id": "4424b9b5-2dc2-4fa4-b41c-4c650b1f6f61",
+    },
+  ],
+
   // Starts the bot after deploys, crashes or platform restarts (it has no inbound traffic to wake it).
   "triggers": { "crons": ["*/5 * * * *"] },
 

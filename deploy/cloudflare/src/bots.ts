@@ -7,6 +7,8 @@
  * worker.ts, and a containers / durable_objects / migrations entry in wrangler.jsonc.
  */
 
+import { D1_BRIDGE_HOST } from '../../../packages/shared/src/d1-bridge.js';
+
 export type BotKey = 'ops';
 
 export interface BotDeployment {
@@ -25,10 +27,12 @@ export interface BotDeployment {
 /** Every bot runs as exactly one instance: two gateway connections would answer everything twice. */
 export const INSTANCE_NAME = 'primary';
 
-/** Variables every bot takes (packages/shared baseEnvSchema plus DATABASE_URL). */
+/**
+ * Variables every bot takes (packages/shared baseEnvSchema). DATABASE_URL is not passed: on
+ * Cloudflare the database is D1, reached through the Worker (D1_BRIDGE_URL, set by containerEnv).
+ */
 const BASE_ENV_KEYS = [
   'LOG_LEVEL',
-  'DATABASE_URL',
   'DISCORD_TOKEN',
   'DISCORD_CLIENT_ID',
   'DISCORD_GUILD_ID',
@@ -77,13 +81,7 @@ export const BOTS: Record<BotKey, BotDeployment> = {
     // bots/ops/src/releases/server.ts and verification/webhook.ts
     paths: ['/healthz', '/webhooks/release', '/webhooks/github', '/webhooks/member'],
     envKeys: OPS_ENV_KEYS,
-    required: [
-      'DATABASE_URL',
-      'DISCORD_TOKEN',
-      'DISCORD_CLIENT_ID',
-      'DISCORD_GUILD_ID',
-      'RELEASE_WEBHOOK_SECRET',
-    ],
+    required: ['DISCORD_TOKEN', 'DISCORD_CLIENT_ID', 'DISCORD_GUILD_ID', 'RELEASE_WEBHOOK_SECRET'],
   },
 };
 
@@ -94,6 +92,9 @@ export function botForPath(pathname: string): BotKey | undefined {
   }
   return undefined;
 }
+
+/** Where a bot container reaches its D1 database (intercepted by the Worker, never public). */
+export const D1_BRIDGE_URL = `http://${D1_BRIDGE_HOST}`;
 
 /**
  * The container's environment: the bot's keys that are set on the Worker (non-empty strings
@@ -110,14 +111,13 @@ export function containerEnv(
   }
   out.NODE_ENV = 'production';
   out.WEBHOOK_PORT = String(bot.port);
+  out.D1_BRIDGE_URL = D1_BRIDGE_URL;
   return out;
 }
 
 /** Required variables that are missing, so the Worker can report them instead of crash-looping. */
 export function missingRequired(bot: BotDeployment, env: Record<string, string>): string[] {
-  const missing = bot.required.filter((key) => !env[key]);
-  if (env.DATABASE_URL?.startsWith('file:')) missing.push('DATABASE_URL (must be PostgreSQL)');
-  return missing;
+  return bot.required.filter((key) => !env[key]);
 }
 
 /**

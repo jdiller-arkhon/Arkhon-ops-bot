@@ -92,6 +92,24 @@ describe('ops config', () => {
     ]);
   });
 
+  it('uses DATABASE_URL, or the D1 bridge on Cloudflare, but never both or neither', () => {
+    expect(loadOpsConfig(validOpsEnv).database).toEqual({
+      kind: 'url',
+      url: validOpsEnv.DATABASE_URL,
+    });
+    const { DATABASE_URL: _d, ...noUrl } = validOpsEnv;
+    expect(loadOpsConfig({ ...noUrl, D1_BRIDGE_URL: 'http://d1.internal' }).database).toEqual({
+      kind: 'd1',
+      bridgeUrl: 'http://d1.internal',
+    });
+    expect(issuesFor(noUrl)).toEqual([
+      'DATABASE_URL: is required (or D1_BRIDGE_URL on Cloudflare)',
+    ]);
+    expect(issuesFor({ ...validOpsEnv, D1_BRIDGE_URL: 'http://d1.internal' })).toEqual([
+      'DATABASE_URL: set DATABASE_URL or D1_BRIDGE_URL, not both',
+    ]);
+  });
+
   it('rejects out-of-range numbers and unknown enum values', () => {
     const issues = issuesFor({ ...validOpsEnv, AUTOMOD_MENTION_LIMIT: '0', TICKET_MODE: 'forum' });
     expect(issues).toHaveLength(2);

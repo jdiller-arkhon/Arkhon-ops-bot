@@ -13,6 +13,7 @@
   },
   "dependencies": {
     "@arkhon/shared": "workspace:*",
+    "@prisma/adapter-d1": "6.19.3",
     "@prisma/client": "6.19.3",
     "discord.js": "^14.27.0",
     "zod": "^3.25.76"

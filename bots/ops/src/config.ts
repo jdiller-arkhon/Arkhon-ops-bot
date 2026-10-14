@@ -23,7 +23,10 @@ const optionalSnowflake = snowflake.optional();
 
 export const opsEnvSchema = baseEnvSchema
   .extend({
-    DATABASE_URL: z.string().min(1),
+    // Exactly one of these: a Prisma database URL (SQLite file or PostgreSQL), or the Cloudflare
+    // D1 bridge the Worker serves to the bot's container (deploy/cloudflare sets it).
+    DATABASE_URL: z.string().min(1).optional(),
+    D1_BRIDGE_URL: z.string().url().optional(),
 
     // Channel and role ids are optional: /setup server creates them and stores the ids in the
     // database. Set these only to point the bot at channels/roles you created by hand; an env
@@ -74,6 +77,15 @@ export const opsEnvSchema = baseEnvSchema
     FEEDBACK_PROMOTE_EMOJI: z.string().min(1).default('🚀'),
   })
   .superRefine((env, ctx) => {
+    if (Boolean(env.DATABASE_URL) === Boolean(env.D1_BRIDGE_URL)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['DATABASE_URL'],
+        message: env.DATABASE_URL
+          ? 'set DATABASE_URL or D1_BRIDGE_URL, not both'
+          : 'is required (or D1_BRIDGE_URL on Cloudflare)',
+      });
+    }
     if (Object.keys(env.GITHUB_RELEASE_REPOS).length > 0 && !env.GITHUB_WEBHOOK_SECRET) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
@@ -101,7 +113,9 @@ export const opsEnvSchema = baseEnvSchema
   .transform((env) => ({
     env: env.NODE_ENV,
     logLevel: env.LOG_LEVEL,
-    databaseUrl: env.DATABASE_URL,
+    database: env.D1_BRIDGE_URL
+      ? ({ kind: 'd1', bridgeUrl: env.D1_BRIDGE_URL } as const)
+      : ({ kind: 'url', url: env.DATABASE_URL ?? '' } as const),
     discord: {
       token: env.DISCORD_TOKEN,
       clientId: env.DISCORD_CLIENT_ID,

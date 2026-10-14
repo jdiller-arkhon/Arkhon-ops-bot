@@ -29,6 +29,7 @@ jobs:
       - run: pnpm typecheck
       - run: pnpm lint
       - run: pnpm test
+      - run: node scripts/d1-migrations.mjs check
       - run: pnpm build
       - name: Build the bot image
         run: docker build -f bots/ops/Dockerfile -t arkhon-ops:ci .

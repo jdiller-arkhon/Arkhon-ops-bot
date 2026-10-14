@@ -23,6 +23,7 @@ function wranglerConfig(): {
   containers: { class_name: string; max_instances: number; image: string }[];
   durable_objects: { bindings: { name: string; class_name: string }[] };
   migrations: { new_sqlite_classes: string[] }[];
+  d1_databases: { binding: string; database_name: string; database_id: string }[];
 } {
   const text = readFileSync(new URL('deploy/cloudflare/wrangler.jsonc', root), 'utf8')
     .replace(/^\s*\/\/.*$/gm, '')
@@ -32,10 +33,12 @@ function wranglerConfig(): {
 
 describe('Cloudflare bot deployment', () => {
   it('passes every bot setting from .env.example to the ops container', () => {
-    // Fixed by the deployment (NODE_ENV, WEBHOOK_PORT) or only used by docker-compose (POSTGRES_*).
+    // Fixed by the deployment (NODE_ENV, WEBHOOK_PORT, D1 instead of DATABASE_URL) or only used by
+    // docker-compose (POSTGRES_*).
     const fixed = new Set([
       'NODE_ENV',
       'WEBHOOK_PORT',
+      'DATABASE_URL',
       'POSTGRES_USER',
       'POSTGRES_PASSWORD',
       'POSTGRES_DB',
@@ -63,19 +66,27 @@ describe('Cloudflare bot deployment', () => {
       OPS_BOT: { not: 'a string' },
       UNRELATED: 'ignored',
       NODE_ENV: 'development',
+      DATABASE_URL: 'postgresql://elsewhere/db',
     });
-    expect(env).toEqual({ DISCORD_TOKEN: 'token', NODE_ENV: 'production', WEBHOOK_PORT: '3000' });
+    expect(env).toEqual({
+      DISCORD_TOKEN: 'token',
+      NODE_ENV: 'production',
+      WEBHOOK_PORT: '3000',
+      D1_BRIDGE_URL: 'http://d1.internal',
+    });
   });
 
-  it('reports missing required settings and a SQLite database URL', () => {
+  it('reports missing required settings', () => {
     expect(missingRequired(BOTS.ops, { NODE_ENV: 'production' })).toEqual([...BOTS.ops.required]);
     const complete = Object.fromEntries(BOTS.ops.required.map((key) => [key, 'x']));
-    expect(
-      missingRequired(BOTS.ops, { ...complete, DATABASE_URL: 'postgresql://db/arkhon' }),
-    ).toEqual([]);
-    expect(missingRequired(BOTS.ops, { ...complete, DATABASE_URL: 'file:./dev.db' })).toEqual([
-      'DATABASE_URL (must be PostgreSQL)',
-    ]);
+    expect(missingRequired(BOTS.ops, complete)).toEqual([]);
+    expect(BOTS.ops.required).not.toContain('DATABASE_URL');
+  });
+
+  it('binds the D1 database the bot reaches through the bridge', () => {
+    const [db] = wranglerConfig().d1_databases;
+    expect(db).toMatchObject({ binding: 'DB', database_name: 'arkhon-bots' });
+    expect(db?.database_id).toMatch(/^[0-9a-f-]{36}$/);
   });
 
   it('runs each bot as a single container bound to its Durable Object', () => {

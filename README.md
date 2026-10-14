@@ -36,6 +36,8 @@ PostgreSQL 15 in prod), Vitest, ESLint + Prettier, pino, Docker.
 - **Feedback pipeline.** Staff react to a `#feedback` forum post with the configured emoji to open a
   GitHub issue in the product's repo (labels: product, `community-feedback`); the bot replies with
   the link.
+- **Status.** A rotating custom status under the bot's name: the network it guards, the live
+  member count, the open ticket queue, and pointers to `/ticket` and `#verify`.
 
 ---
 
@@ -77,13 +79,14 @@ cp .env.example .env
 ```
 
 Only these are required: `DISCORD_TOKEN`, `DISCORD_CLIENT_ID`, `DISCORD_GUILD_ID`,
-`DATABASE_URL`, `RELEASE_WEBHOOK_SECRET`. The bot validates the environment at startup and exits
+`DATABASE_URL` (or `D1_BRIDGE_URL` on Cloudflare, set for you), `RELEASE_WEBHOOK_SECRET`. The bot validates the environment at startup and exits
 with a list of every missing or invalid variable.
 
 | Variables                                                         | Purpose                                                                                                            |
 | ----------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
 | `DISCORD_TOKEN`, `DISCORD_CLIENT_ID`, `DISCORD_GUILD_ID`          | Bot identity and the one server it serves                                                                          |
 | `DATABASE_URL`                                                    | `file:./dev.db` for SQLite, or a `postgresql://` URL                                                               |
+| `D1_BRIDGE_URL`                                                   | Cloudflare only, set by the Worker: use D1 instead of `DATABASE_URL` (never set both)                              |
 | `WEBHOOK_PORT`, `RELEASE_WEBHOOK_SECRET`                          | Release webhook server                                                                                             |
 | `*_CHANNEL_ID`, `*_ROLE_ID`                                       | Optional overrides. `/setup server` creates these and stores the ids; set one only to use your own channel or role |
 | `TICKET_MODE`, `TICKET_CATEGORY_ID`                               | Private threads (default) or private channels                                                                      |
@@ -244,15 +247,18 @@ gateway connection, which plain Workers cannot hold; a container can.
 - **Configuration.** Every variable in `.env.example` is read from the Worker's secrets and vars and
   passed to the container. `NODE_ENV=production` and `WEBHOOK_PORT=3000` are set for you. If a
   required value is missing, `/healthz` answers 503 with the list and the cron log says so.
+- **Database: Cloudflare D1.** The `arkhon-bots` D1 database (bound as `DB` in `wrangler.jsonc`)
+  holds everything. The container cannot bind D1 itself, so the bot sends its queries to
+  `http://d1.internal`, which the Worker intercepts (it is never public) and runs against the
+  binding; Prisma uses its D1 adapter on top. On start the bot applies any new
+  `prisma/d1-migrations/*.sql` file. No database outside Cloudflare and no `DATABASE_URL` needed.
 
 **Requirements**
 
 - A Cloudflare account on the **Workers Paid** plan (Containers are not on the free plan).
 - **Docker running** on the machine that deploys (`wrangler deploy` builds and pushes the image).
-- A **PostgreSQL** database reachable from the internet. The container disk is not persistent, so
-  SQLite does not work. [Neon](https://neon.tech) (which the website already uses) works well:
-  create a separate `arkhon_bots` database and use its **direct** (non-pooled) connection string
-  with `?sslmode=require`; Prisma migrations need the direct connection.
+- The D1 database `arkhon-bots` already exists in the account (its id is in `wrangler.jsonc`). To
+  use another account, create one with `npx wrangler d1 create arkhon-bots` and put its id there.
 
 **Deploy with GitHub Actions (recommended, no local Docker needed)**
 
@@ -270,18 +276,17 @@ values take effect. Deleting a GitHub secret does not delete the Worker secret; 
 
 One-time setup, in GitHub → Settings → Secrets and variables → Actions → **Secrets**:
 
-| Secret                       | Value                                                                                                                                                                                                                     |
-| ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `CLOUDFLARE_API_TOKEN`       | Cloudflare → My Profile → API Tokens → Create Token → "Edit Cloudflare Workers" template, limited to your account, plus **Containers: Edit** (if a deploy fails with an authorization error, add the permission it names) |
-| `CLOUDFLARE_ACCOUNT_ID`      | Cloudflare dashboard → Workers & Pages → Account ID (right sidebar)                                                                                                                                                       |
-| `DISCORD_TOKEN`              | Developer Portal → Bot → Reset Token                                                                                                                                                                                      |
-| `DISCORD_CLIENT_ID`          | Developer Portal → General Information → Application ID                                                                                                                                                                   |
-| `DISCORD_GUILD_ID`           | Discord → right-click the server → Copy Server ID (Developer Mode on)                                                                                                                                                     |
-| `DATABASE_URL`               | Neon **direct** connection string ending in `?sslmode=require`                                                                                                                                                            |
-| `RELEASE_WEBHOOK_SECRET`     | `openssl rand -hex 32`                                                                                                                                                                                                    |
-| `ARKHON_WEBSITE_URL`         | the website's public URL                                                                                                                                                                                                  |
-| `ARKHON_COMMUNITY_API_TOKEN` | same value as the website's `COMMUNITY_BOT_API_TOKEN` (`openssl rand -hex 32`, set on both)                                                                                                                               |
-| `MEMBER_WEBHOOK_SECRET`      | same value as the website's `COMMUNITY_BOT_WEBHOOK_SECRET` (`openssl rand -hex 32`, set on both)                                                                                                                          |
+| Secret                       | Value                                                                                                                                                                                                                                      |
+| ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `CLOUDFLARE_API_TOKEN`       | Cloudflare → My Profile → API Tokens → Create Token → "Edit Cloudflare Workers" template, limited to your account, plus **Containers: Edit** and **D1: Edit** (if a deploy fails with an authorization error, add the permission it names) |
+| `CLOUDFLARE_ACCOUNT_ID`      | Cloudflare dashboard → Workers & Pages → Account ID (right sidebar)                                                                                                                                                                        |
+| `DISCORD_TOKEN`              | Developer Portal → Bot → Reset Token                                                                                                                                                                                                       |
+| `DISCORD_CLIENT_ID`          | Developer Portal → General Information → Application ID                                                                                                                                                                                    |
+| `DISCORD_GUILD_ID`           | Discord → right-click the server → Copy Server ID (Developer Mode on)                                                                                                                                                                      |
+| `RELEASE_WEBHOOK_SECRET`     | `openssl rand -hex 32`                                                                                                                                                                                                                     |
+| `ARKHON_WEBSITE_URL`         | the website's public URL                                                                                                                                                                                                                   |
+| `ARKHON_COMMUNITY_API_TOKEN` | same value as the website's `COMMUNITY_BOT_API_TOKEN` (`openssl rand -hex 32`, set on both)                                                                                                                                                |
+| `MEMBER_WEBHOOK_SECRET`      | same value as the website's `COMMUNITY_BOT_WEBHOOK_SECRET` (`openssl rand -hex 32`, set on both)                                                                                                                                           |
 
 Any other variable from `.env.example` (for example `GITHUB_TOKEN`, `TICKET_MODE`, `LOG_LEVEL`) can
 be added as a secret or a plain variable the same way. Without the Cloudflare secrets the deploy job
@@ -305,7 +310,7 @@ pnpm deploy:commands --guild                # registers the slash commands (read
 
 The first deploy takes a few minutes before the container is ready. The cron trigger starts the bot
 within 5 minutes; to start it at once, open `https://arkhon-bots.<your-subdomain>.workers.dev/healthz`
-(the deploy log prints the exact host). On start the container applies Prisma migrations, then
+(the deploy log prints the exact host). On start the bot applies the D1 migrations, then
 connects to Discord. Then point the integrations at the Worker URL:
 
 | Integration                         | URL                                      |
@@ -320,9 +325,11 @@ connects to Discord. Then point the integrations at the Worker URL:
   output) are in the Cloudflare dashboard under Workers & Pages → arkhon-bots → Containers.
 - Change a setting: update the GitHub secret and re-run the workflow, or `npx wrangler secret put
 NAME` in `deploy/cloudflare`. The bot restarts with the new value within 5 minutes.
+- Database: Cloudflare dashboard → Storage & Databases → D1 → `arkhon-bots` (console, backups via
+  Time Travel), or `npx wrangler d1 execute arkhon-bots --remote --command "SELECT ..."`.
 - Cost: the $5/month Workers Paid plan plus the `basic` instance (1/4 vCPU, 1 GiB) running
   continuously: at most about $20/month at full CPU, less in practice because CPU is billed only
-  while in use.
+  while in use. D1 at this size fits in the plan's included usage.
 
 **Certa and Argus bots.** `bots/certa` and `bots/argus` are reserved but not built yet. When one is,
 give it a Dockerfile like the Ops Bot's, then add it in three places: an entry in

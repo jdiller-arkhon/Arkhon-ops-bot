@@ -30,6 +30,8 @@ bots/ops/          @arkhon/ops-bot
   src/moderation/        AutoMod rules, /mod helpers
   src/releases/          HTTP server, HMAC verification, payload parsing, announcement
   src/feedback/          forum reaction -> GitHub issue
+  src/d1/                bridge.ts (D1 binding over HTTP to the Worker), migrate.ts (prisma/d1-migrations)
+  src/presence.ts        rotating custom status
   src/layout.ts          LayoutStore: channel/role ids from /setup (DB) with env overrides
   src/startup.ts         panels, posted content, AutoMod: runs on startup and after /setup
   src/verification/      member ID verification: api.ts (website client), handlers.ts (#verify flow),
@@ -38,8 +40,10 @@ bots/ops/          @arkhon/ops-bot
   src/setup/             blueprint.ts (the whole server as data), plan.ts (pure diff),
                          apply.ts (Discord side), content.ts (welcome/rules), session.ts (preview/confirm)
 bots/certa/, bots/argus/ placeholders for the next two bots
-deploy/cloudflare/       Cloudflare hosting: Worker + one always-on Container per bot (bots.ts is pure and tested)
-prisma/schema.prisma     single schema for all bots; prisma/migrations are PostgreSQL migrations
+deploy/cloudflare/       Cloudflare hosting: Worker + one always-on Container per bot (bots.ts is pure and tested),
+                         D1 database served to the containers by src/d1-bridge.ts
+prisma/schema.prisma     single schema for all bots; prisma/migrations are PostgreSQL migrations,
+                         prisma/d1-migrations are the same changes for Cloudflare D1
 scripts/prisma.mjs       Prisma CLI wrapper that switches to SQLite when DATABASE_URL starts with file:
 ```
 
@@ -85,7 +89,9 @@ Run `pnpm typecheck && pnpm lint && pnpm test` before committing. All three must
   tables. No Prisma enums or `@db.*` native types (must work on SQLite and PostgreSQL); status
   columns are strings validated in code. After editing the schema, add a PostgreSQL migration:
   `DATABASE_URL=postgresql://... pnpm exec prisma migrate dev --name <change>` against a dev
-  Postgres, or `prisma migrate diff` to produce SQL. Use optimistic `updateMany({ where: { id, status } })`
+  Postgres, or `prisma migrate diff` to produce SQL. Also add the Cloudflare D1 (SQLite) migration
+  with `node scripts/d1-migrations.mjs new <change>` (CI runs `... check`). D1 has no transactions:
+  no `$transaction` or raw SQL. Use optimistic `updateMany({ where: { id, status } })`
   for state transitions.
 - **Logging:** pino via `createLogger(botName)`. Log objects first, message second. No `console.log`
   outside entry-point fatal errors.

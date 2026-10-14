@@ -3,10 +3,11 @@ import { Client, Events, GatewayIntentBits, Partials } from 'discord.js';
 import { COMMANDS_DIR } from './commands-dir.js';
 import { loadOpsConfig } from './config.js';
 import type { OpsContext } from './context.js';
-import { createPrisma } from './db.js';
+import { openDatabase } from './db.js';
 import { onFeedbackReaction, onFeedbackThreadCreate } from './feedback/forum.js';
 import { createInteractionHandler } from './interactions.js';
 import { sendWelcomeDm } from './onboarding/welcome.js';
+import { startPresenceRotation } from './presence.js';
 import { createWebhookServer } from './releases/server.js';
 import { onTicketMessage } from './tickets/service.js';
 import { runLayoutTasks } from './startup.js';
@@ -20,7 +21,7 @@ async function main(): Promise<void> {
   loadDotEnv();
   const config = loadOpsConfig();
   const logger = createLogger('ops', { level: config.logLevel });
-  const prisma = createPrisma(config.databaseUrl);
+  const prisma = await openDatabase(config.database, logger);
 
   const client = new Client({
     intents: [
@@ -76,6 +77,7 @@ async function main(): Promise<void> {
       );
       return;
     }
+    startPresenceRotation(ready, ctx, guild);
     try {
       await guild.members.fetch();
     } catch (error) {
