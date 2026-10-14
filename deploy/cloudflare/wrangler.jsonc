@@ -1,0 +1,37 @@
+// Cloudflare deployment for the Arkhon bots. See README "Hosting on Cloudflare".
+// `wrangler deploy` builds bots/ops/Dockerfile with the repository root as build context,
+// so Docker must be running on the machine that deploys.
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "arkhon-bots",
+  "main": "src/worker.ts",
+  "compatibility_date": "2026-10-01",
+  "observability": { "enabled": true },
+
+  "containers": [
+    {
+      "class_name": "OpsBot",
+      "image": "../../bots/ops/Dockerfile",
+      "image_build_context": "../..",
+      // 1/4 vCPU, 1 GiB memory: room for discord.js, Prisma and the HTTP server.
+      "instance_type": "basic",
+      // Exactly one gateway connection; a second instance would answer every event twice.
+      "max_instances": 1,
+    },
+  ],
+
+  "durable_objects": {
+    "bindings": [{ "name": "OPS_BOT", "class_name": "OpsBot" }],
+  },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["OpsBot"] }],
+
+  // Starts the bot after deploys, crashes or platform restarts (it has no inbound traffic to wake it).
+  "triggers": { "crons": ["*/5 * * * *"] },
+
+  // Non-secret settings. Secrets (tokens, DATABASE_URL, webhook secrets) are set with
+  // `wrangler secret put NAME`; every variable in .env.example can be set either way.
+  "vars": {
+    "LOG_LEVEL": "info",
+    "TICKET_MODE": "thread",
+  },
+}

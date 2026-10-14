@@ -10,6 +10,7 @@
     "packages/*/test",
     "bots/*/src",
     "bots/*/test",
+    "deploy/*/test",
     "vitest.config.ts",
     "eslint.config.js"
   ]

@@ -6,7 +6,11 @@ export default defineConfig({
     conditions: ['development'],
   },
   test: {
-    include: ['packages/*/test/**/*.test.ts', 'bots/*/test/**/*.test.ts'],
+    include: [
+      'packages/*/test/**/*.test.ts',
+      'bots/*/test/**/*.test.ts',
+      'deploy/*/test/**/*.test.ts',
+    ],
     environment: 'node',
   },
 });

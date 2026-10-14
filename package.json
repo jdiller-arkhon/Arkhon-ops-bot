@@ -9,7 +9,7 @@
   "scripts": {
     "postinstall": "node scripts/prisma.mjs generate",
     "build": "tsc -b bots/ops",
-    "typecheck": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json && tsc -p deploy/cloudflare",
     "test": "vitest run",
     "test:watch": "vitest",
     "lint": "eslint .",
@@ -21,7 +21,8 @@
     "db:studio": "node scripts/prisma.mjs studio",
     "dev:ops": "pnpm --filter @arkhon/ops-bot dev",
     "start:ops": "pnpm --filter @arkhon/ops-bot start",
-    "deploy:commands": "pnpm --filter @arkhon/ops-bot deploy:commands"
+    "deploy:commands": "pnpm --filter @arkhon/ops-bot deploy:commands",
+    "deploy:cloudflare": "pnpm --filter @arkhon/cloudflare deploy"
   },
   "dependencies": {
     "@prisma/client": "6.19.3",

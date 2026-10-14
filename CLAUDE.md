@@ -38,6 +38,7 @@ bots/ops/          @arkhon/ops-bot
   src/setup/             blueprint.ts (the whole server as data), plan.ts (pure diff),
                          apply.ts (Discord side), content.ts (welcome/rules), session.ts (preview/confirm)
 bots/certa/, bots/argus/ placeholders for the next two bots
+deploy/cloudflare/       Cloudflare hosting: Worker + one always-on Container per bot (bots.ts is pure and tested)
 prisma/schema.prisma     single schema for all bots; prisma/migrations are PostgreSQL migrations
 scripts/prisma.mjs       Prisma CLI wrapper that switches to SQLite when DATABASE_URL starts with file:
 ```
@@ -55,6 +56,7 @@ pnpm db:push          # sync schema to the local SQLite database
 pnpm db:migrate       # prisma migrate deploy (PostgreSQL)
 pnpm dev:ops          # tsx watch + pino-pretty
 pnpm deploy:commands  # guild in dev, global when NODE_ENV=production
+pnpm deploy:cloudflare # build the bot image and deploy to Cloudflare Containers (needs Docker)
 ```
 
 Run `pnpm typecheck && pnpm lint && pnpm test` before committing. All three must pass.

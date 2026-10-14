@@ -228,6 +228,86 @@ docker compose run --rm ops node bots/ops/dist/deploy-commands.js
 The webhook server listens on `WEBHOOK_PORT` (default 3000). Put it behind HTTPS (a reverse proxy
 or tunnel) before pointing external services at it. `GET /healthz` reports readiness.
 
+## 5b. Host on Cloudflare (production)
+
+`deploy/cloudflare` runs the bot on **Cloudflare Containers**: the same `bots/ops/Dockerfile` image,
+as one always-on instance, behind a small Worker (`arkhon-bots`). A Discord bot keeps a permanent
+gateway connection, which plain Workers cannot hold; a container can.
+
+- **Single instance.** `max_instances: 1`; two gateway connections would answer every event twice.
+- **Never sleeps.** Containers normally stop when no HTTP traffic arrives. The Worker ignores
+  activity expiry, and a cron trigger (every 5 minutes) starts the bot after deploys, crashes or
+  platform restarts. Rollouts send SIGTERM, which the bot handles gracefully.
+- **Public routes.** The Worker forwards `/webhooks/release`, `/webhooks/github`, `/webhooks/member`
+  and `/healthz` to the container, over HTTPS on `https://arkhon-bots.<your-subdomain>.workers.dev`
+  (or a custom domain). Everything else is 404.
+- **Configuration.** Every variable in `.env.example` is read from the Worker's secrets and vars and
+  passed to the container. `NODE_ENV=production` and `WEBHOOK_PORT=3000` are set for you. If a
+  required value is missing, `/healthz` answers 503 with the list and the cron log says so.
+
+**Requirements**
+
+- A Cloudflare account on the **Workers Paid** plan (Containers are not on the free plan).
+- **Docker running** on the machine that deploys (`wrangler deploy` builds and pushes the image).
+- A **PostgreSQL** database reachable from the internet. The container disk is not persistent, so
+  SQLite does not work. [Neon](https://neon.tech) (which the website already uses) works well:
+  create a separate `arkhon_bots` database and use its **direct** (non-pooled) connection string
+  with `?sslmode=require`; Prisma migrations need the direct connection.
+
+**Deploy**
+
+```bash
+pnpm install
+cd deploy/cloudflare
+npx wrangler login
+
+# Secrets (repeat for each; or put them in a JSON file and run `npx wrangler secret bulk secrets.json`)
+npx wrangler secret put DISCORD_TOKEN
+npx wrangler secret put DISCORD_CLIENT_ID
+npx wrangler secret put DISCORD_GUILD_ID
+npx wrangler secret put DATABASE_URL
+npx wrangler secret put RELEASE_WEBHOOK_SECRET
+# member verification
+npx wrangler secret put ARKHON_WEBSITE_URL
+npx wrangler secret put ARKHON_COMMUNITY_API_TOKEN
+npx wrangler secret put MEMBER_WEBHOOK_SECRET
+# optional: GITHUB_TOKEN, GITHUB_WEBHOOK_SECRET, GITHUB_FEEDBACK_REPOS, GITHUB_RELEASE_REPOS, ...
+
+cd ../..
+pnpm deploy:cloudflare        # builds bots/ops/Dockerfile, pushes it, deploys the Worker
+```
+
+The first deploy takes a few minutes before the container is ready. The cron trigger starts the bot
+within 5 minutes; to start it at once, open `https://arkhon-bots.<your-subdomain>.workers.dev/healthz`.
+On start the container applies Prisma migrations, then connects to Discord.
+
+Register slash commands once from your machine with `pnpm deploy:commands --guild` (it only needs
+the Discord variables in `.env`). They are registered to your server, so they appear immediately.
+
+Then point the integrations at the Worker URL:
+
+| Integration                         | URL                                      |
+| ----------------------------------- | ---------------------------------------- |
+| Website `COMMUNITY_BOT_WEBHOOK_URL` | `https://<worker host>/webhooks/member`  |
+| Release webhooks (CI)               | `https://<worker host>/webhooks/release` |
+| GitHub release webhook              | `https://<worker host>/webhooks/github`  |
+
+**Operate**
+
+- Logs: `pnpm --filter @arkhon/cloudflare tail` for the Worker; container logs (the bot's pino
+  output) are in the Cloudflare dashboard under Workers & Pages → arkhon-bots → Containers.
+- Change a setting: `npx wrangler secret put NAME` in `deploy/cloudflare`, then redeploy so the
+  container restarts with it.
+- Cost: the $5/month Workers Paid plan plus the `basic` instance (1/4 vCPU, 1 GiB) running
+  continuously: at most about $20/month at full CPU, less in practice because CPU is billed only
+  while in use.
+
+**Certa and Argus bots.** `bots/certa` and `bots/argus` are reserved but not built yet. When one is,
+give it a Dockerfile like the Ops Bot's, then add it in three places: an entry in
+`deploy/cloudflare/src/bots.ts`, a container class in `src/worker.ts` (copy `OpsBot`), and a
+`containers` / `durable_objects` / `migrations` entry in `wrangler.jsonc`. The tests check that
+each bot is bound to exactly one container instance.
+
 ## 6. Release webhooks
 
 Custom payload:

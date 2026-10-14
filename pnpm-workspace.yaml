@@ -1,9 +1,11 @@
 packages:
   - packages/*
   - bots/*
+  - deploy/*
 
 onlyBuiltDependencies:
   - prisma
   - '@prisma/client'
   - '@prisma/engines'
   - esbuild
+  - workerd
