@@ -61,7 +61,7 @@ jobs:
       - if: steps.creds.outputs.ready == 'true'
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22 # wrangler 4 needs Node.js 22
           cache: pnpm
       - if: steps.creds.outputs.ready == 'true'
         run: pnpm install --frozen-lockfile
