@@ -28,10 +28,6 @@
   // Starts the bot after deploys, crashes or platform restarts (it has no inbound traffic to wake it).
   "triggers": { "crons": ["*/5 * * * *"] },
 
-  // Non-secret settings. Secrets (tokens, DATABASE_URL, webhook secrets) are set with
-  // `wrangler secret put NAME`; every variable in .env.example can be set either way.
-  "vars": {
-    "LOG_LEVEL": "info",
-    "TICKET_MODE": "thread",
-  },
+  // No "vars" here: every bot setting is a Worker secret (wrangler secret put / secret bulk, or
+  // synced from GitHub by .github/workflows/ci-deploy.yml). A name cannot be both a var and a secret.
 }

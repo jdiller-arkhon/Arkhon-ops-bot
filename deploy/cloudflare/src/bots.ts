@@ -119,3 +119,39 @@ export function missingRequired(bot: BotDeployment, env: Record<string, string>)
   if (env.DATABASE_URL?.startsWith('file:')) missing.push('DATABASE_URL (must be PostgreSQL)');
   return missing;
 }
+
+/**
+ * Fingerprint of a container environment. The container records the fingerprint it started with;
+ * when the Worker's secrets change, the fingerprints differ and the Worker restarts the container
+ * so the bot picks up the new values (a deploy alone does not restart an unchanged image).
+ */
+export async function envFingerprint(env: Record<string, string>): Promise<string> {
+  const canonical = JSON.stringify(
+    Object.keys(env)
+      .sort()
+      .map((key) => [key, env[key]]),
+  );
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(canonical));
+  return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, '0')).join('');
+}
+
+/** Every variable any bot reads, i.e. what the Worker should hold as secrets or vars. */
+export function allEnvKeys(): string[] {
+  return [...new Set(Object.values(BOTS).flatMap((bot) => bot.envKeys))].sort();
+}
+
+/**
+ * The Worker secrets to upload: known bot variables with non-empty string values, taken from the
+ * given sources in order (later sources win). Used by CI to copy GitHub secrets to Cloudflare.
+ */
+export function workerSecrets(...sources: Record<string, unknown>[]): Record<string, string> {
+  const keys = allEnvKeys();
+  const out: Record<string, string> = {};
+  for (const source of sources) {
+    for (const key of keys) {
+      const value = source[key];
+      if (typeof value === 'string' && value.trim() !== '') out[key] = value;
+    }
+  }
+  return out;
+}

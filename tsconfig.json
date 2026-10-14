@@ -11,6 +11,7 @@
     "bots/*/src",
     "bots/*/test",
     "deploy/*/test",
+    "deploy/*/scripts",
     "vitest.config.ts",
     "eslint.config.js"
   ]

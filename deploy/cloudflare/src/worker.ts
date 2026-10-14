@@ -6,7 +6,8 @@
  *   - forwards the bots' public HTTP routes (release, GitHub and member webhooks, /healthz),
  *   - passes the Worker's secrets to the container as environment variables,
  *   - keeps the gateway connection alive: containers normally sleep when no HTTP traffic arrives,
- *     so activity expiry is ignored and a cron trigger starts the container after deploys or crashes.
+ *     so activity expiry is ignored and a cron trigger starts the container after deploys or crashes,
+ *   - restarts the container when the secrets change, so new values take effect within 5 minutes.
  *
  * Logging here uses console, which is how Workers logs reach `wrangler tail` and the dashboard.
  */
@@ -16,9 +17,13 @@ import {
   INSTANCE_NAME,
   botForPath,
   containerEnv,
+  envFingerprint,
   missingRequired,
   type BotDeployment,
 } from './bots.js';
+
+/** Storage key for the fingerprint of the configuration the running container started with. */
+const STARTED_WITH = 'startedWithEnv';
 
 interface Env {
   OPS_BOT: DurableObjectNamespace<OpsBot>;
@@ -33,6 +38,30 @@ abstract class BotContainer extends Container<Env> {
   /** A Discord bot holds a gateway connection with no inbound HTTP, so it must never sleep. */
   override async onActivityExpired(): Promise<void> {
     // Not stopping renews the activity timer (see @cloudflare/containers).
+  }
+
+  /** Remember which configuration this run started with. */
+  override async onStart(): Promise<void> {
+    await this.ctx.storage.put(STARTED_WITH, await envFingerprint(this.envVars ?? {}));
+  }
+
+  /**
+   * Stops the container when the Worker's secrets or vars changed since it started, so the next
+   * health check starts it again with the new values. Returns true when it restarted.
+   */
+  async restartIfConfigChanged(): Promise<boolean> {
+    const state = await this.getState();
+    if (state.status !== 'running' && state.status !== 'healthy') return false;
+    const started = await this.ctx.storage.get<string>(STARTED_WITH);
+    const current = await envFingerprint(this.envVars ?? {});
+    if (!started || started === current) return false;
+    await this.stop();
+    for (let i = 0; i < 30; i++) {
+      const { status } = await this.getState();
+      if (status === 'stopped' || status === 'stopped_with_code') break;
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+    }
+    return true;
   }
 
   override onError(error: unknown): void {
@@ -73,7 +102,11 @@ async function ensureRunning(env: Env, key: string, bot: BotDeployment): Promise
     return;
   }
   try {
-    const res = await instance(env, bot).fetch(`http://${key}.internal/healthz`);
+    const stub = instance(env, bot);
+    if (await stub.restartIfConfigChanged()) {
+      console.log(JSON.stringify({ msg: 'configuration changed: restarting', bot: key }));
+    }
+    const res = await stub.fetch(`http://${key}.internal/healthz`);
     console.log(JSON.stringify({ msg: 'health check', bot: key, status: res.status }));
   } catch (error) {
     console.error(JSON.stringify({ msg: 'health check failed', bot: key, error: String(error) }));

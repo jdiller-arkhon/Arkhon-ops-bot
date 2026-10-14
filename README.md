@@ -254,37 +254,59 @@ gateway connection, which plain Workers cannot hold; a container can.
   create a separate `arkhon_bots` database and use its **direct** (non-pooled) connection string
   with `?sslmode=require`; Prisma migrations need the direct connection.
 
-**Deploy**
+**Deploy with GitHub Actions (recommended, no local Docker needed)**
+
+`.github/workflows/ci-deploy.yml` checks every push (typecheck, lint, tests, build, image build).
+On the default branch, and on manual runs (Actions → CI and deploy → Run workflow), it also:
+
+1. deploys the Worker and builds/pushes the bot image (`pnpm deploy:cloudflare`),
+2. copies every bot setting found in the repository's secrets and variables to the Worker
+   (`wrangler secret bulk`; only names from `.env.example` are copied, never the Cloudflare token),
+3. registers the slash commands for your server (`pnpm deploy:commands --guild`).
+
+When the settings change, the Worker restarts the bot container within 5 minutes so the new
+values take effect. Deleting a GitHub secret does not delete the Worker secret; remove it with
+`npx wrangler secret delete NAME` in `deploy/cloudflare`.
+
+One-time setup, in GitHub → Settings → Secrets and variables → Actions → **Secrets**:
+
+| Secret                       | Value                                                                                                                                                                                                                     |
+| ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `CLOUDFLARE_API_TOKEN`       | Cloudflare → My Profile → API Tokens → Create Token → "Edit Cloudflare Workers" template, limited to your account, plus **Containers: Edit** (if a deploy fails with an authorization error, add the permission it names) |
+| `CLOUDFLARE_ACCOUNT_ID`      | Cloudflare dashboard → Workers & Pages → Account ID (right sidebar)                                                                                                                                                       |
+| `DISCORD_TOKEN`              | Developer Portal → Bot → Reset Token                                                                                                                                                                                      |
+| `DISCORD_CLIENT_ID`          | Developer Portal → General Information → Application ID                                                                                                                                                                   |
+| `DISCORD_GUILD_ID`           | Discord → right-click the server → Copy Server ID (Developer Mode on)                                                                                                                                                     |
+| `DATABASE_URL`               | Neon **direct** connection string ending in `?sslmode=require`                                                                                                                                                            |
+| `RELEASE_WEBHOOK_SECRET`     | `openssl rand -hex 32`                                                                                                                                                                                                    |
+| `ARKHON_WEBSITE_URL`         | the website's public URL                                                                                                                                                                                                  |
+| `ARKHON_COMMUNITY_API_TOKEN` | same value as the website's `COMMUNITY_BOT_API_TOKEN` (`openssl rand -hex 32`, set on both)                                                                                                                               |
+| `MEMBER_WEBHOOK_SECRET`      | same value as the website's `COMMUNITY_BOT_WEBHOOK_SECRET` (`openssl rand -hex 32`, set on both)                                                                                                                          |
+
+Any other variable from `.env.example` (for example `GITHUB_TOKEN`, `TICKET_MODE`, `LOG_LEVEL`) can
+be added as a secret or a plain variable the same way. Without the Cloudflare secrets the deploy job
+is skipped with a warning, so the checks keep running.
+
+**Deploy from your machine (alternative)**
+
+Needs Docker running locally.
 
 ```bash
 pnpm install
 cd deploy/cloudflare
 npx wrangler login
-
-# Secrets (repeat for each; or put them in a JSON file and run `npx wrangler secret bulk secrets.json`)
-npx wrangler secret put DISCORD_TOKEN
-npx wrangler secret put DISCORD_CLIENT_ID
-npx wrangler secret put DISCORD_GUILD_ID
-npx wrangler secret put DATABASE_URL
-npx wrangler secret put RELEASE_WEBHOOK_SECRET
-# member verification
-npx wrangler secret put ARKHON_WEBSITE_URL
-npx wrangler secret put ARKHON_COMMUNITY_API_TOKEN
-npx wrangler secret put MEMBER_WEBHOOK_SECRET
-# optional: GITHUB_TOKEN, GITHUB_WEBHOOK_SECRET, GITHUB_FEEDBACK_REPOS, GITHUB_RELEASE_REPOS, ...
-
+npx wrangler secret put DISCORD_TOKEN       # repeat for each setting in the table above
 cd ../..
-pnpm deploy:cloudflare        # builds bots/ops/Dockerfile, pushes it, deploys the Worker
+pnpm deploy:cloudflare
+pnpm deploy:commands --guild                # registers the slash commands (reads .env)
 ```
 
+**After the first deploy**
+
 The first deploy takes a few minutes before the container is ready. The cron trigger starts the bot
-within 5 minutes; to start it at once, open `https://arkhon-bots.<your-subdomain>.workers.dev/healthz`.
-On start the container applies Prisma migrations, then connects to Discord.
-
-Register slash commands once from your machine with `pnpm deploy:commands --guild` (it only needs
-the Discord variables in `.env`). They are registered to your server, so they appear immediately.
-
-Then point the integrations at the Worker URL:
+within 5 minutes; to start it at once, open `https://arkhon-bots.<your-subdomain>.workers.dev/healthz`
+(the deploy log prints the exact host). On start the container applies Prisma migrations, then
+connects to Discord. Then point the integrations at the Worker URL:
 
 | Integration                         | URL                                      |
 | ----------------------------------- | ---------------------------------------- |
@@ -296,8 +318,8 @@ Then point the integrations at the Worker URL:
 
 - Logs: `pnpm --filter @arkhon/cloudflare tail` for the Worker; container logs (the bot's pino
   output) are in the Cloudflare dashboard under Workers & Pages → arkhon-bots → Containers.
-- Change a setting: `npx wrangler secret put NAME` in `deploy/cloudflare`, then redeploy so the
-  container restarts with it.
+- Change a setting: update the GitHub secret and re-run the workflow, or `npx wrangler secret put
+NAME` in `deploy/cloudflare`. The bot restarts with the new value within 5 minutes.
 - Cost: the $5/month Workers Paid plan plus the `basic` instance (1/4 vCPU, 1 GiB) running
   continuously: at most about $20/month at full CPU, less in practice because CPU is billed only
   while in use.

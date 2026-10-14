@@ -2,7 +2,14 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { GITHUB_PATH, RELEASE_PATH } from '../../../bots/ops/src/releases/server.js';
 import { MEMBER_WEBHOOK_PATH } from '../../../bots/ops/src/verification/webhook.js';
-import { BOTS, botForPath, containerEnv, missingRequired } from '../src/bots.js';
+import {
+  BOTS,
+  botForPath,
+  containerEnv,
+  envFingerprint,
+  missingRequired,
+  workerSecrets,
+} from '../src/bots.js';
 
 const root = new URL('../../../', import.meta.url);
 
@@ -80,5 +87,32 @@ describe('Cloudflare bot deployment', () => {
       expect(container?.max_instances).toBe(1);
       expect(config.migrations.flatMap((m) => m.new_sqlite_classes)).toContain(binding!.class_name);
     }
+  });
+});
+
+describe('envFingerprint', () => {
+  it('is stable across key order and changes with any value', async () => {
+    const a = await envFingerprint({ A: '1', B: '2' });
+    expect(a).toMatch(/^[0-9a-f]{64}$/);
+    expect(await envFingerprint({ B: '2', A: '1' })).toBe(a);
+    expect(await envFingerprint({ A: '1', B: '3' })).not.toBe(a);
+    expect(await envFingerprint({ A: '1' })).not.toBe(a);
+  });
+});
+
+describe('workerSecrets', () => {
+  it('keeps known non-empty bot settings, later sources winning', () => {
+    const vars = { LOG_LEVEL: 'debug', TICKET_MODE: 'thread', CLOUDFLARE_API_TOKEN: 'never' };
+    const secrets = {
+      DISCORD_TOKEN: 'abc',
+      LOG_LEVEL: 'warn',
+      GITHUB_TOKEN: '  ',
+      github_token: 'x',
+    };
+    expect(workerSecrets(vars, secrets)).toEqual({
+      LOG_LEVEL: 'warn',
+      TICKET_MODE: 'thread',
+      DISCORD_TOKEN: 'abc',
+    });
   });
 });
