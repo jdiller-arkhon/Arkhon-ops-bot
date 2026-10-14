@@ -117,7 +117,7 @@ What it builds (defined in `bots/ops/src/setup/blueprint.ts`):
 - **Role icons**: a custom icon for every role (`bots/ops/assets/role-icons`): faceted metal glyphs
   on a transparent background, cut from the approved design sheet (`src/reference-sheet.png`) by
   `src/extract.py`. The script cleans stray specks, re-shades the glyphs in the website's
-  charcoal-to-white palette with the logo's periwinkle glow, and adds a thin charcoal edge so they
+  charcoal-to-white palette with a bright periwinkle glow, sharpens them, and adds a thin charcoal edge so they
   read on Discord's light theme too. Discord shows role icons only on servers with Boost Level 2;
   until then the build skips them and says so.
 - **Server settings**: Medium verification, explicit-content filter for all members, mentions-only

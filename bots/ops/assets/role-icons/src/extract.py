@@ -2,7 +2,7 @@
 
 For each glyph in the sheet's dark row: cut it out onto transparency, drop stray specks and the
 tile's floor reflection, re-shade it in the website's charcoal-to-white metal with the logo's
-periwinkle glow, add a thin charcoal edge for Discord's light theme, and fit it to 128x128.
+periwinkle glow, add a bright periwinkle bloom, a thin charcoal edge for Discord's light theme, and fit it to 128x128.
 
     python3 extract.py reference-sheet.png <out dir>
 """
@@ -21,6 +21,8 @@ LO, HI = 34, 150            # brightness -> opacity ramp; the tile background si
 METAL = [(0.0, (17, 17, 19)), (0.35, (43, 43, 46)), (0.55, (72, 72, 76)), (0.78, (201, 201, 207)), (1.0, (255, 255, 255))]
 GLOW = (119, 123, 196)
 EDGE = (29, 29, 31)
+BLOOM = (139, 144, 255)   # brighter cousin of the logo periwinkle
+HALO = (214, 217, 255)
 
 
 def ramp(t):
@@ -34,7 +36,7 @@ def ramp(t):
 
 def contrast(t):
     # gentle S-curve: deeper facet shadows, crisper highlights
-    return t * t * (3 - 2 * t) * 0.6 + t * 0.4
+    return t * t * (3 - 2 * t) * 0.8 + t * 0.2
 
 
 def keep_main_parts(alpha, w, h, min_share=0.008, solid=0.15):
@@ -105,13 +107,23 @@ def build(sheet, key, cx, floor_cut=None, min_share=0.008, solid=0.15):
     base.putalpha(edge.point(lambda v: int(v * 0.9)))
     comp = Image.alpha_composite(base, out)
 
+    # bright glow: a wide periwinkle bloom plus a tight light halo behind the glyph
+    core = out.getchannel("A").point(lambda v: 255 if v > 120 else 0)
+    glow = Image.new("RGBA", (w, h))
+    for colour, grow, blur, strength in ((BLOOM, 5, 7, 0.95), (HALO, 3, 2.2, 0.75)):
+        mask = core.filter(ImageFilter.MaxFilter(grow)).filter(ImageFilter.GaussianBlur(blur))
+        layer = Image.new("RGBA", (w, h), colour + (0,))
+        layer.putalpha(mask.point(lambda v, k=strength: int(min(255, v * k))))
+        glow = Image.alpha_composite(glow, layer)
+    comp = Image.alpha_composite(glow, comp)
+
     x0, y0, x1, y1 = comp.getchannel("A").point(lambda v: 255 if v > 24 else 0).getbbox()
-    side = max(x1 - x0, y1 - y0) + 8
+    side = max(x1 - x0, y1 - y0) + 18
     mx, my = (x0 + x1) // 2, (y0 + y1) // 2
     sq = Image.new("RGBA", (side, side))
     sq.paste(comp.crop((mx - side // 2, my - side // 2, mx - side // 2 + side, my - side // 2 + side)), (0, 0))
     icon = sq.resize((128, 128), Image.LANCZOS)
-    return icon.filter(ImageFilter.UnsharpMask(radius=1.2, percent=70, threshold=2))
+    return icon.filter(ImageFilter.UnsharpMask(radius=1.4, percent=140, threshold=1))
 
 
 if __name__ == "__main__":
