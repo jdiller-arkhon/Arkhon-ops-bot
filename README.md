@@ -36,8 +36,8 @@ PostgreSQL 15 in prod), Vitest, ESLint + Prettier, pino, Docker.
 - **Feedback pipeline.** Staff react to a `#feedback` forum post with the configured emoji to open a
   GitHub issue in the product's repo (labels: product, `community-feedback`); the bot replies with
   the link.
-- **Status.** A rotating custom status under the bot's name: the network it guards, the live
-  member count, the open ticket queue, and pointers to `/ticket` and `#verify`.
+- **Status.** A rotating custom status under the bot's name: the network it watches over, the
+  open ticket queue, and pointers to `/ticket` and `#verify`.
 
 ---
 

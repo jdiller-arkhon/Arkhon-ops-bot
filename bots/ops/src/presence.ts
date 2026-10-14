@@ -3,7 +3,6 @@ import type { OpsContext } from './context.js';
 
 /** Live numbers some status lines show. */
 export interface PresenceStats {
-  members: number;
   openTickets: number;
 }
 
@@ -19,7 +18,6 @@ const plural = (n: number, one: string, many: string) =>
 /** The rotation, in order. Each line is a custom status (shown under the bot's name). */
 export const STATUS_LINES: readonly ((stats: PresenceStats) => string)[] = [
   () => '🛡️ Standing watch over The Arkhon Pilot Network',
-  ({ members }) => `🛰️ Guarding ${plural(members, 'pilot', 'pilots')}`,
   ({ openTickets }) =>
     openTickets === 0
       ? '✅ All channels clear · /ticket if you need us'
@@ -42,7 +40,7 @@ async function readStats(ctx: OpsContext, guild: Guild): Promise<PresenceStats> 
   const openTickets = await ctx.prisma.opsTicket
     .count({ where: { guildId: guild.id, status: { not: 'closed' } } })
     .catch(() => 0);
-  return { members: guild.memberCount, openTickets };
+  return { openTickets };
 }
 
 /** Sets the custom status now and rotates it every PRESENCE_ROTATE_MS. */
