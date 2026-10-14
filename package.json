@@ -22,7 +22,7 @@
     "dev:ops": "pnpm --filter @arkhon/ops-bot dev",
     "start:ops": "pnpm --filter @arkhon/ops-bot start",
     "deploy:commands": "pnpm --filter @arkhon/ops-bot deploy:commands",
-    "deploy:cloudflare": "pnpm --filter @arkhon/cloudflare deploy"
+    "deploy:cloudflare": "pnpm --filter @arkhon/cloudflare run deploy"
   },
   "dependencies": {
     "@prisma/client": "6.19.3",

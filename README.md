@@ -321,7 +321,7 @@ connects to Discord. Then point the integrations at the Worker URL:
 
 **Operate**
 
-- Logs: `pnpm --filter @arkhon/cloudflare tail` for the Worker; container logs (the bot's pino
+- Logs: `pnpm --filter @arkhon/cloudflare run tail` for the Worker; container logs (the bot's pino
   output) are in the Cloudflare dashboard under Workers & Pages → arkhon-bots → Containers.
 - Change a setting: update the GitHub secret and re-run the workflow, or `npx wrangler secret put
 NAME` in `deploy/cloudflare`. The bot restarts with the new value within 5 minutes.
