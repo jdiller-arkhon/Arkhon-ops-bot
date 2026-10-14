@@ -114,11 +114,12 @@ What it builds (defined in `bots/ops/src/setup/blueprint.ts`):
   `sansBold`, `sansItalic`, `smallCaps` or `plain` and re-run; existing channels are renamed in place.
 - **Roles**, branded and ordered: Arkhon Team, Moderator, Certa Staff, Argus Staff, Certa User,
   Argus User, Verified, with colors and permissions per role.
-- **Role icons**: a custom icon for every role (`bots/ops/assets/role-icons`): faceted chrome
-  glyphs with a lavender glow on a transparent background, cut from the approved design sheet
-  (`src/reference-sheet.png`) by `src/extract.py`, which adds a thin graphite edge so they read on
-  Discord's light theme too. Discord shows role icons only on servers with Boost Level 2; until then
-  the build skips them and says so.
+- **Role icons**: a custom icon for every role (`bots/ops/assets/role-icons`): faceted metal glyphs
+  on a transparent background, cut from the approved design sheet (`src/reference-sheet.png`) by
+  `src/extract.py`. The script cleans stray specks, re-shades the glyphs in the website's
+  charcoal-to-white palette with the logo's periwinkle glow, and adds a thin charcoal edge so they
+  read on Discord's light theme too. Discord shows role icons only on servers with Boost Level 2;
+  until then the build skips them and says so.
 - **Server settings**: Medium verification, explicit-content filter for all members, mentions-only
   notifications, a curated @everyone permission set, and join messages off (members get a DM).
 - **Community** mode, so announcements can be followed, the feedback forum requires a product tag,
