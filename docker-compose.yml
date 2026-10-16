@@ -1,5 +1,5 @@
 # One service per bot plus one shared PostgreSQL database.
-# The Certa and Argus bots are added here by their own build steps.
+# The Argus bot is added here by its own build step.
 services:
   postgres:
     image: postgres:15-alpine
@@ -30,6 +30,23 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+
+  certa:
+    build:
+      context: .
+      dockerfile: bots/certa/Dockerfile
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      NODE_ENV: production
+      WEBHOOK_PORT: 3001
+      DATABASE_URL: postgresql://${POSTGRES_USER:-arkhon}:${POSTGRES_PASSWORD:-arkhon}@postgres:5432/${POSTGRES_DB:-arkhon_bots}?schema=public
+    depends_on:
+      postgres:
+        condition: service_healthy
+      # The Ops bot runs the PostgreSQL migrations for the shared schema first.
+      ops:
+        condition: service_started
 
 volumes:
   pgdata:

@@ -1,4 +1,11 @@
-import { arkhonEmbed, parseProduct, productLabel, truncate, type Product } from '@arkhon/shared';
+import {
+  arkhonEmbed,
+  parseProduct,
+  productLabel,
+  truncate,
+  type Product,
+  isUniqueViolation,
+} from '@arkhon/shared';
 import {
   ChannelType,
   type AnyThreadChannel,
@@ -9,7 +16,6 @@ import {
   type User,
 } from 'discord.js';
 import type { OpsContext } from '../context.js';
-import { isUniqueViolation } from '../db.js';
 import { isStaff } from '../permissions.js';
 import { createGithubIssue } from './github.js';
 

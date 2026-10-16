@@ -1,9 +1,8 @@
-import type { Logger } from '@arkhon/shared';
 import { PrismaD1 } from '@prisma/adapter-d1';
 import { PrismaClient } from '@prisma/client';
-import type { OpsConfig } from './config.js';
-import { createD1Bridge } from './d1/bridge.js';
-import { applyD1Migrations } from './d1/migrate.js';
+import { createD1Bridge } from './d1-client.js';
+import { applyD1Migrations } from './d1-migrate.js';
+import type { Logger } from './logger.js';
 
 /**
  * The SQLite-provider client generated for D1 by scripts/prisma.mjs. It has the same models and
@@ -11,6 +10,11 @@ import { applyD1Migrations } from './d1/migrate.js';
  * built at runtime so tsc does not pull the generated code into this project.
  */
 const D1_CLIENT_URL = new URL('../../../prisma/.generated/d1-client/index.js', import.meta.url);
+
+/** Where a bot's database lives: a Prisma URL, or Cloudflare D1 through the Worker bridge. */
+export type DatabaseTarget =
+  | { readonly kind: 'url'; readonly url: string }
+  | { readonly kind: 'd1'; readonly bridgeUrl: string };
 
 type D1ClientModule = { PrismaClient?: unknown; default?: { PrismaClient?: unknown } };
 type D1Binding = ConstructorParameters<typeof PrismaD1>[0];
@@ -20,7 +24,7 @@ type D1Binding = ConstructorParameters<typeof PrismaD1>[0];
  * start), or Cloudflare D1 through the Worker bridge, applying pending D1 migrations first.
  */
 export async function openDatabase(
-  database: OpsConfig['database'],
+  database: DatabaseTarget,
   logger: Logger,
 ): Promise<PrismaClient> {
   if (database.kind === 'url') return new PrismaClient({ datasourceUrl: database.url });

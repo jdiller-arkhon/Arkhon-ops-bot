@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import type { OpsContext } from '../context.js';
-import { isUniqueViolation } from '../db.js';
+import { isUniqueViolation } from '@arkhon/shared';
 import { verifyTimestampedSignature } from '../releases/signature.js';
 import { applyMemberLink, removeMemberLink } from './service.js';
 

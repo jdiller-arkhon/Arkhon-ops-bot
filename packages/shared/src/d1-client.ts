@@ -1,10 +1,10 @@
-import { D1_BRIDGE_HOST, decodeD1Value, encodeD1Value, type D1BridgeRequest } from '@arkhon/shared';
+import { D1_BRIDGE_HOST, decodeD1Value, encodeD1Value, type D1BridgeRequest } from './d1-bridge.js';
 
 /**
  * The subset of the D1 binding API that Prisma's D1 adapter and the migrator use, implemented over
- * HTTP to the Worker (see packages/shared/src/d1-bridge.ts). Pass it to `new PrismaD1(...)`.
+ * HTTP to the Worker (protocol in d1-bridge.ts). Pass it to `new PrismaD1(...)`.
  */
-export interface D1BridgeStatement {
+export interface D1BridgeBoundStatement {
   readonly sql: string;
   readonly params: unknown[];
   run(): Promise<unknown>;
@@ -12,9 +12,9 @@ export interface D1BridgeStatement {
 }
 
 export interface D1Bridge {
-  prepare(sql: string): { bind(...params: unknown[]): D1BridgeStatement };
+  prepare(sql: string): { bind(...params: unknown[]): D1BridgeBoundStatement };
   exec(sql: string): Promise<unknown>;
-  batch(statements: D1BridgeStatement[]): Promise<unknown[]>;
+  batch(statements: D1BridgeBoundStatement[]): Promise<unknown[]>;
 }
 
 export type FetchLike = (url: string, init: RequestInit) => Promise<Response>;

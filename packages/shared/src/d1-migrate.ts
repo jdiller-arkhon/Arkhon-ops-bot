@@ -1,9 +1,9 @@
 import { readdir, readFile } from 'node:fs/promises';
-import type { Logger } from '@arkhon/shared';
-import type { D1Bridge } from './bridge.js';
+import type { D1Bridge } from './d1-client.js';
+import type { Logger } from './logger.js';
 
-/** prisma/d1-migrations at the repository root (same depth from src/d1 and dist/d1). */
-export const D1_MIGRATIONS_DIR = new URL('../../../../prisma/d1-migrations/', import.meta.url);
+/** prisma/d1-migrations at the repository root (same depth from packages/shared/src and dist). */
+export const D1_MIGRATIONS_DIR = new URL('../../../prisma/d1-migrations/', import.meta.url);
 
 const TRACKING_TABLE = '_arkhon_d1_migrations';
 
@@ -36,7 +36,9 @@ export function pendingMigrations(files: string[], applied: Iterable<string>): s
 
 /**
  * Applies new prisma/d1-migrations files. Each file runs as one D1 batch together with its
- * tracking row, so a file is applied completely or not at all.
+ * tracking row, so a file is applied completely or not at all. Every bot shares one D1 database
+ * and runs this on startup; when two start together and the other one applies a file first, this
+ * bot's batch fails on the tracking row and the file is skipped instead of failing startup.
  */
 export async function applyD1Migrations(
   db: D1Bridge,
@@ -49,20 +51,28 @@ export async function applyD1Migrations(
     )
     .bind()
     .run();
-  const rows = await db.prepare(`SELECT "name" FROM "${TRACKING_TABLE}"`).bind().raw();
-  const pending = pendingMigrations(
-    await readdir(dir),
-    rows.map((row) => String(row[0])),
-  );
+  const appliedNames = async () =>
+    (await db.prepare(`SELECT "name" FROM "${TRACKING_TABLE}"`).bind().raw()).map((row) =>
+      String(row[0]),
+    );
+  const pending = pendingMigrations(await readdir(dir), await appliedNames());
+  const applied: string[] = [];
   for (const name of pending) {
     const statements = splitStatements(await readFile(new URL(name, dir), 'utf8'));
-    await db.batch([
-      ...statements.map((sql) => db.prepare(sql).bind()),
-      db
-        .prepare(`INSERT INTO "${TRACKING_TABLE}" ("name", "applied_at") VALUES (?, ?)`)
-        .bind(name, new Date().toISOString()),
-    ]);
+    try {
+      await db.batch([
+        ...statements.map((sql) => db.prepare(sql).bind()),
+        db
+          .prepare(`INSERT INTO "${TRACKING_TABLE}" ("name", "applied_at") VALUES (?, ?)`)
+          .bind(name, new Date().toISOString()),
+      ]);
+    } catch (error) {
+      if (!(await appliedNames()).includes(name)) throw error;
+      logger.info({ migration: name }, 'D1 migration already applied by another bot');
+      continue;
+    }
+    applied.push(name);
     logger.info({ migration: name, statements: statements.length }, 'applied D1 migration');
   }
-  return pending;
+  return applied;
 }

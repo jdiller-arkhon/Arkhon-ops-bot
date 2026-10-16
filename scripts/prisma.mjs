@@ -6,7 +6,7 @@
 // swapped to "sqlite" and runs Prisma against that copy instead. Everything else is passed through.
 //
 // "generate" also builds a second client for Cloudflare D1 (SQLite through a driver adapter) from
-// prisma/.generated/d1.prisma, output to prisma/.generated/d1-client. See bots/ops/src/d1/.
+// prisma/.generated/d1.prisma, output to prisma/.generated/d1-client. See packages/shared/src/database.ts.
 //
 //   node scripts/prisma.mjs generate
 //   node scripts/prisma.mjs db push

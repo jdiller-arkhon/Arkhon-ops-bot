@@ -2,7 +2,7 @@
 // Cloudflare D1 migrations (SQLite), kept next to the PostgreSQL ones in prisma/migrations.
 //
 // The bot applies prisma/d1-migrations/*.sql in name order on startup when it runs on D1
-// (bots/ops/src/d1/migrate.ts). After changing prisma/schema.prisma, write the next file with:
+// (packages/shared/src/d1-migrate.ts). After changing prisma/schema.prisma, write the next file with:
 //
 //   node scripts/d1-migrations.mjs new <name>    # e.g. new add_ticket_priority
 //   node scripts/d1-migrations.mjs check         # exit 1 if the migrations lag the schema (CI)

@@ -1,9 +1,8 @@
-import { ConfigError, createLogger, loadCommands, loadDotEnv } from '@arkhon/shared';
+import { ConfigError, createLogger, loadCommands, loadDotEnv, openDatabase } from '@arkhon/shared';
 import { Client, Events, GatewayIntentBits, Partials } from 'discord.js';
 import { COMMANDS_DIR } from './commands-dir.js';
 import { loadOpsConfig } from './config.js';
 import type { OpsContext } from './context.js';
-import { openDatabase } from './db.js';
 import { onFeedbackReaction, onFeedbackThreadCreate } from './feedback/forum.js';
 import { createInteractionHandler } from './interactions.js';
 import { sendWelcomeDm } from './onboarding/welcome.js';

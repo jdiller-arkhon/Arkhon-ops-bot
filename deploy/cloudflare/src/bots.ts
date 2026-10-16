@@ -3,17 +3,17 @@
  * APIs, so it is unit-tested with the rest of the repo.
  *
  * Each bot is one always-on container (a long-lived discord.js gateway process) behind this
- * Worker. To add the Certa or Argus bot once it exists: add an entry here, a container class in
+ * Worker. To add the Argus bot once it exists: add an entry here, a container class in
  * worker.ts, and a containers / durable_objects / migrations entry in wrangler.jsonc.
  */
 
 import { D1_BRIDGE_HOST } from '../../../packages/shared/src/d1-bridge.js';
 
-export type BotKey = 'ops';
+export type BotKey = 'ops' | 'certa';
 
 export interface BotDeployment {
   /** Durable Object binding name in wrangler.jsonc. */
-  binding: 'OPS_BOT';
+  binding: 'OPS_BOT' | 'CERTA_BOT';
   /** Port the bot's HTTP server listens on inside the container (WEBHOOK_PORT). */
   port: number;
   /** Public paths the Worker forwards to this bot. */
@@ -53,6 +53,7 @@ const OPS_ENV_KEYS = [
   'ARGUS_STAFF_ROLE_ID',
   'CERTA_USER_ROLE_ID',
   'ARGUS_USER_ROLE_ID',
+  'CERTA_DISCORD_CLIENT_ID',
   'TICKET_MODE',
   'TICKET_CATEGORY_ID',
   'AUTOMOD_MENTION_LIMIT',
@@ -74,6 +75,34 @@ const OPS_ENV_KEYS = [
   'FEEDBACK_PROMOTE_EMOJI',
 ] as const;
 
+/**
+ * bots/certa/src/config.ts. The Certa bot is its own Discord application: it reads
+ * CERTA_DISCORD_TOKEN / CERTA_DISCORD_CLIENT_ID, never the Ops bot's DISCORD_TOKEN.
+ */
+const CERTA_ENV_KEYS = [
+  'LOG_LEVEL',
+  'DISCORD_GUILD_ID',
+  'CERTA_DISCORD_TOKEN',
+  'CERTA_DISCORD_CLIENT_ID',
+  'CERTA_API_MODE',
+  'CERTA_API_BASE_URL',
+  'CERTA_API_TOKEN',
+  'CERTA_TIMEZONE',
+  'CERTA_REMINDER_TIME',
+  'CERTA_PREFLIGHT_TIME',
+  'CERTA_PREFLIGHT_AIRPORTS',
+  'CERTA_LEADERBOARD_TIME',
+  'CERTA_FLIGHT_LOGS_CHANNEL_ID',
+  'CERTA_PREFLIGHT_CHANNEL_ID',
+  'CERTA_HOME_CHANNEL_ID',
+  'PREFLIGHT_MAX_WIND_KT',
+  'PREFLIGHT_MAX_GUST_KT',
+  'PREFLIGHT_MIN_VISIBILITY_SM',
+  'PREFLIGHT_MIN_CEILING_FT',
+  'PREFLIGHT_KP_CAUTION',
+  'PREFLIGHT_TFR_RADIUS_NM',
+] as const;
+
 export const BOTS: Record<BotKey, BotDeployment> = {
   ops: {
     binding: 'OPS_BOT',
@@ -82,6 +111,21 @@ export const BOTS: Record<BotKey, BotDeployment> = {
     paths: ['/healthz', '/webhooks/release', '/webhooks/github', '/webhooks/member'],
     envKeys: OPS_ENV_KEYS,
     required: ['DISCORD_TOKEN', 'DISCORD_CLIENT_ID', 'DISCORD_GUILD_ID', 'RELEASE_WEBHOOK_SECRET'],
+  },
+  certa: {
+    binding: 'CERTA_BOT',
+    port: 3001,
+    // No public routes: the Worker reaches /healthz directly on the container.
+    paths: [],
+    envKeys: CERTA_ENV_KEYS,
+    // CERTA_API_MODE must be chosen explicitly (mock until the Certa API is live), so a missing
+    // setting is reported instead of the bot failing on its http-mode settings.
+    required: [
+      'CERTA_DISCORD_TOKEN',
+      'CERTA_DISCORD_CLIENT_ID',
+      'DISCORD_GUILD_ID',
+      'CERTA_API_MODE',
+    ],
   },
 };
 

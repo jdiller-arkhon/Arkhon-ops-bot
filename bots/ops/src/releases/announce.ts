@@ -1,7 +1,6 @@
-import { arkhonEmbed, EMBED_LIMITS, productLabel } from '@arkhon/shared';
+import { arkhonEmbed, EMBED_LIMITS, productLabel, isUniqueViolation } from '@arkhon/shared';
 import { ChannelType } from 'discord.js';
 import type { OpsContext } from '../context.js';
-import { isUniqueViolation } from '../db.js';
 import { displayVersion, type Release } from './payload.js';
 
 export type AnnounceResult = { status: 'posted'; messageId: string } | { status: 'duplicate' };
