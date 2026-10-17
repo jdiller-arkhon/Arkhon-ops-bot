@@ -10,6 +10,7 @@ import { createInteractionHandler } from './interactions.js';
 import { createJobs } from './jobs/index.js';
 import { startScheduler } from './jobs/scheduler.js';
 import { PreflightService } from './preflight/service.js';
+import { startPresenceRotation } from './presence.js';
 import { CertaStore } from './store.js';
 
 async function main(): Promise<void> {
@@ -41,6 +42,7 @@ async function main(): Promise<void> {
   logger.info({ commands: [...commands.keys()], api: config.api.mode }, 'commands loaded');
 
   let stopScheduler: (() => void) | undefined;
+  let stopPresence: (() => void) | undefined;
   client.once(Events.ClientReady, (ready) => {
     logger.info({ user: ready.user.tag }, 'connected to Discord');
     stopScheduler = startScheduler(createJobs(ctx), {
@@ -48,6 +50,7 @@ async function main(): Promise<void> {
       store: ctx.store,
       logger,
     });
+    stopPresence = startPresenceRotation(ready, ctx);
     logger.info('startup complete');
   });
   client.on(Events.InteractionCreate, createInteractionHandler(ctx, commands));
@@ -64,6 +67,7 @@ async function main(): Promise<void> {
     shuttingDown = true;
     logger.info({ signal }, 'shutting down');
     stopScheduler?.();
+    stopPresence?.();
     server.close();
     await client.destroy();
     await prisma.$disconnect();
