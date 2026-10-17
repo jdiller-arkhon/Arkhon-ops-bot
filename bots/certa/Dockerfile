@@ -17,7 +17,7 @@ RUN pnpm install --frozen-lockfile
 COPY tsconfig.base.json ./
 COPY packages/shared packages/shared
 COPY bots/certa bots/certa
-RUN pnpm build
+RUN pnpm exec tsc -b bots/certa
 
 # ---- runtime: production dependencies + compiled output
 FROM base AS runtime
