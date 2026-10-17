@@ -20,6 +20,8 @@ import {
 import {
   type CurrencyStatus,
   currencyStatusSchema,
+  type Fleet,
+  fleetSchema,
   type FlightInput,
   type FlightTotals,
   flightTotalsSchema,
@@ -85,6 +87,12 @@ export class HttpCertaClient implements CertaClient {
         notFound: 'user',
       },
     );
+  }
+
+  async getFleet(certaUserId: string): Promise<Fleet> {
+    return this.call(fleetSchema, 'GET', `/v1/users/${encodeURIComponent(certaUserId)}/fleet`, {
+      notFound: 'user',
+    });
   }
 
   async getCurrency(certaUserId: string): Promise<CurrencyStatus> {

@@ -16,6 +16,14 @@ export function createInteractionHandler(
       await runInteraction(interaction, ctx.logger, () => command.execute(interaction, ctx));
       return;
     }
+    if (interaction.isAutocomplete()) {
+      const command = commands.get(interaction.commandName);
+      if (!command?.autocomplete) return;
+      await command.autocomplete(interaction, ctx).catch((error: unknown) => {
+        ctx.logger.warn({ err: error, command: interaction.commandName }, 'autocomplete failed');
+      });
+      return;
+    }
     if (!interaction.isButton() && !interaction.isModalSubmit()) return;
     const parsed = parseCustomId(interaction.customId);
     if (!parsed) return;

@@ -1,5 +1,6 @@
 import type {
   CurrencyStatus,
+  Fleet,
   FlightInput,
   FlightTotals,
   LeaderboardEntry,
@@ -18,6 +19,8 @@ export interface CertaClient {
   logFlight(certaUserId: string, flight: FlightInput): Promise<LogFlightResult>;
   getTotals(certaUserId: string): Promise<FlightTotals>;
   getCurrency(certaUserId: string): Promise<CurrencyStatus>;
+  /** Aircraft and batteries the pilot flies (their organization's fleet in Certa). */
+  getFleet(certaUserId: string): Promise<Fleet>;
   getLeaderboard(
     period: LeaderboardPeriod,
     options?: LeaderboardOptions,

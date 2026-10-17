@@ -2,11 +2,13 @@ import { randomUUID } from 'node:crypto';
 import { isUniqueViolation } from '@arkhon/shared';
 import type { PrismaClient } from '@prisma/client';
 import { DateTime } from 'luxon';
+import { mockFleet } from '../domain/mock-fleet.js';
 import { computeTotals, rankLeaderboard } from '../domain/mock-math.js';
 import { type CertaClient, CertaInvalidLinkCodeError, CertaUserNotFoundError } from './client.js';
 import {
   flightInputSchema,
   type CurrencyStatus,
+  type Fleet,
   type FlightInput,
   type FlightTotals,
   type LeaderboardEntry,
@@ -106,6 +108,11 @@ export class MockCertaClient implements CertaClient {
       lastTrainingDate: user.lastTrainingDate,
       lastTrainingKind: kind === 'initial' || kind === 'recurrent' ? kind : null,
     };
+  }
+
+  async getFleet(certaUserId: string): Promise<Fleet> {
+    await this.requireUser(certaUserId);
+    return mockFleet(certaUserId, this.now().toISODate()!);
   }
 
   async getLeaderboard(

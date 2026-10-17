@@ -93,3 +93,37 @@ export interface LeaderboardOptions {
   month?: string;
   limit?: number;
 }
+
+/** Aircraft as Certa tracks it (subset the bot shows). Mirrors Certa's Aircraft entity. */
+export const fleetAircraftSchema = z.object({
+  id: z.string().min(1),
+  /** Display name: nickname, or make and model. */
+  name: z.string().min(1),
+  makeModel: z.string().min(1),
+  status: z.enum(['active', 'grounded', 'retired']),
+  groundedReason: z.string().nullable(),
+  registrationExpiresOn: isoDate.nullable(),
+  /** Next scheduled maintenance, or null if none is scheduled. */
+  maintenanceDueOn: isoDate.nullable(),
+  totalFlights: z.number().int().nonnegative(),
+  totalMinutes: z.number().int().nonnegative(),
+});
+export type FleetAircraft = z.infer<typeof fleetAircraftSchema>;
+
+export const fleetBatterySchema = z.object({
+  id: z.string().min(1),
+  label: z.string().min(1),
+  status: z.enum(['active', 'watch', 'retired']),
+  cycleCount: z.number().int().nonnegative(),
+  /** Retirement threshold in cycles, or null if none is set. */
+  maxCycles: z.number().int().positive().nullable(),
+  /** Aircraft model it fits, for matching batteries to an aircraft. */
+  aircraftModel: z.string().nullable(),
+});
+export type FleetBattery = z.infer<typeof fleetBatterySchema>;
+
+export const fleetSchema = z.object({
+  aircraft: z.array(fleetAircraftSchema),
+  batteries: z.array(fleetBatterySchema),
+});
+export type Fleet = z.infer<typeof fleetSchema>;

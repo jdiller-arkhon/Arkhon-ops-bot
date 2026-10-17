@@ -4,15 +4,18 @@
 application, shares the database with the Ops Bot (`certa_*` tables) and reads the channels that
 `/setup server` creates (`#flight-logs`, `#preflight`, `#certa-general`).
 
-| Command                         | What it does                                                          |
-| ------------------------------- | --------------------------------------------------------------------- |
-| `/certa link code:<code>`       | Links a Certa account with a one-time code from Certa                 |
-| `/certa unlink`                 | Removes the link, reminder history and unshared flight summaries      |
-| `/certa reminders state:on/off` | Recurrent training reminder DMs (60/30/14/3 days before due)          |
-| `/log mission:<type>`           | Form to log a flight, with an optional "Share to #flight-logs" button |
-| `/hours`, `/currency`           | Flight totals; Part 107 recurrent due date                            |
-| `/preflight icao:<code>`        | METAR, TAF, Kp and nearby TFRs with a GO/CAUTION summary (advisory)   |
-| `/leaderboard [period]`         | Top 10 by flight time this month or all time                          |
+| Command                         | What it does                                                                           |
+| ------------------------------- | -------------------------------------------------------------------------------------- |
+| `/certa link code:<code>`       | Links a Certa account with a one-time code from Certa                                  |
+| `/certa unlink`                 | Removes the link, reminder history and unshared flight summaries                       |
+| `/certa reminders state:on/off` | Recurrent training reminder DMs (60/30/14/3 days before due)                           |
+| `/log mission:<type>`           | Form to log a flight, with an optional "Share to #flight-logs" button                  |
+| `/hours`, `/currency`           | Flight totals; Part 107 recurrent due date                                             |
+| `/preflight icao:<code>`        | METAR, TAF, Kp and nearby TFRs with a GO/CAUTION summary (advisory)                    |
+| `/leaderboard [period]`         | Top 10 by flight time this month or all time                                           |
+| `/fleet`                        | Your aircraft and batteries: airworthiness, registration, maintenance, battery cycles  |
+| `/gonogo [aircraft] [icao]`     | Go/no-go: Part 107 currency, aircraft, batteries, plus live weather, daylight and TFRs |
+| `/daylight [icao]`              | Sunrise, sunset and civil twilight at an airport (14 CFR 107.29)                       |
 
 Scheduled jobs: daily reminders (`CERTA_REMINDER_TIME`), daily preflight for
 `CERTA_PREFLIGHT_AIRPORTS` (`CERTA_PREFLIGHT_TIME`), and the monthly leaderboard on the 1st.

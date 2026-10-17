@@ -5,6 +5,7 @@ import {
   Collection,
   REST,
   Routes,
+  type AutocompleteInteraction,
   type ChatInputCommandInteraction,
   type RESTPostAPIChatInputApplicationCommandsJSONBody,
 } from 'discord.js';
@@ -17,6 +18,8 @@ import type { Logger } from 'pino';
 export interface Command<Ctx = unknown> {
   data: { name: string; toJSON(): RESTPostAPIChatInputApplicationCommandsJSONBody };
   execute(interaction: ChatInputCommandInteraction, ctx: Ctx): Promise<void>;
+  /** Optional: answers autocomplete for the command's options. */
+  autocomplete?(interaction: AutocompleteInteraction, ctx: Ctx): Promise<void>;
 }
 
 export type CommandRegistry<Ctx = unknown> = Collection<string, Command<Ctx>>;
