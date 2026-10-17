@@ -24,6 +24,7 @@ import {
   type PermissionsString,
 } from 'discord.js';
 import type { OpsContext } from '../context.js';
+import { assignBotRole } from '../onboarding/bot-role.js';
 import { runLayoutTasks } from '../startup.js';
 import {
   BLUEPRINT,
@@ -246,6 +247,15 @@ export async function executeBuildout(
       .map((entry) => ({ role: entry.id, position: Math.max(1, top - 1 - entry.index) }));
     if (positions.length > 0) await guild.roles.setPositions(positions);
   });
+  const botsRole = blueprint.roles.find((role) => role.key === 'bots');
+  const botsRoleId = ids['role.bots'];
+  if (botsRole && botsRoleId) {
+    await attempt(`${botsRole.name} role for bots`, async () => {
+      const added = await assignBotRole(guild, botsRoleId, reason);
+      if (added > 0)
+        report.updated.push(`${botsRole.name} → ${added} bot${added === 1 ? '' : 's'}`);
+    });
+  }
 
   // ---------------------------------------------------------------- server settings
   if (options.serverSettings) {

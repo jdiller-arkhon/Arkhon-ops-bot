@@ -11,7 +11,7 @@ import type { OpsContext } from '../context.js';
 import { ids } from '../ids.js';
 import { requireAdmin } from '../permissions.js';
 import { executeBuildout, snapshotGuild, type BuildOptions, type BuildReport } from './apply.js';
-import { planBuildout, summarizePlan, type BuildPlan } from './plan.js';
+import { pendingCreates, planBuildout, summarizePlan, type BuildPlan } from './plan.js';
 
 /** A preview waiting for its admin to press Build. Lives in memory for 10 minutes. */
 interface PendingBuild {
@@ -53,6 +53,7 @@ export function buildPreviewEmbed(
     `**${label}:** ${s.create} new · ${s.update} existing${s.skip ? ` · ${s.skip} skipped` : ''}`;
   const creating = plan.items.filter((i) => i.action === 'create').map((i) => i.name);
   const notes = plan.items.filter((i) => i.note).map((i) => `${i.name}: ${i.note}`);
+  const upToDate = pendingCreates(plan).length === 0;
 
   const embed = arkhonEmbed({
     title: 'Server buildout preview',
@@ -63,12 +64,24 @@ export function buildPreviewEmbed(
       '',
       optionLines(options, plan.community, plan.roleIcons),
       '',
-      'Existing roles and channels are matched by name and updated to match the blueprint (names, colors,',
-      'topics and permissions). Anything not in the blueprint is left alone. Running this again is safe.',
+      upToDate
+        ? '✅ **Everything in the blueprint already exists.** Building again re-applies names, colors, icons, topics, permissions and posted content. Nothing is duplicated.'
+        : `🆕 **${creating.length} new item${creating.length === 1 ? '' : 's'} to add** (listed below). Everything that already exists is matched by its saved id or name and updated in place, never duplicated.`,
+      'Channels and roles outside the blueprint are left alone. Run this after every bot update to catch up.',
     ].join('\n'),
     fields: [
-      { name: `Will create (${creating.length})`, value: list(creating) },
+      ...(creating.length > 0
+        ? [{ name: `Will create (${creating.length})`, value: list(creating) }]
+        : []),
       ...(notes.length > 0 ? [{ name: 'Notes', value: list(notes) }] : []),
+      ...(plan.unmanaged.length > 0
+        ? [
+            {
+              name: `Not in the blueprint, left as is (${plan.unmanaged.length})`,
+              value: list(plan.unmanaged.map((c) => c.name)),
+            },
+          ]
+        : []),
     ],
   });
   if (missingPermissions.length > 0) {

@@ -31,6 +31,7 @@ export const OPTIONAL_RESOURCES = [
   'channel.general',
   'role.team',
   'role.moderator',
+  'role.bots',
 ] as const;
 
 export type RequiredResourceKey = (typeof REQUIRED_RESOURCES)[number];
@@ -64,6 +65,8 @@ export interface ServerLayout {
     team?: string;
     /** Community moderators: may use /mod but do not handle tickets. */
     moderator?: string;
+    /** Arkhon Systems: given to every bot for its icon and member-list group. */
+    bots?: string;
   };
 }
 
@@ -100,11 +103,13 @@ export function buildLayout(ids: ResourceIds): {
   const general = opt('channel.general');
   const team = opt('role.team');
   const moderator = opt('role.moderator');
+  const bots = opt('role.bots');
   if (welcome) layout.channels.welcome = welcome.value;
   if (rules) layout.channels.rules = rules.value;
   if (general) layout.channels.general = general.value;
   if (team) layout.roles.team = team.value;
   if (moderator) layout.roles.moderator = moderator.value;
+  if (bots) layout.roles.bots = bots.value;
   return { layout, missing: [] };
 }
 

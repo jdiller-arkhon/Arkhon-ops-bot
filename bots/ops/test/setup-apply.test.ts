@@ -45,6 +45,20 @@ function fakeGuild(opts: { allowCommunity?: boolean; roleIcons?: boolean } = {})
   >();
   const iconUploads: string[] = [];
   const channels = new Map<string, FakeChannel>();
+  // The bot itself (999), another bot and a human; role ids per member.
+  const memberRoles = new Map<string, Set<string>>([
+    ['999', new Set()],
+    ['777', new Set()],
+    ['555', new Set()],
+  ]);
+  const fakeMember = (id: string) => ({
+    id,
+    user: { bot: id !== '555' },
+    roles: {
+      cache: { has: (roleId: string) => memberRoles.get(id)!.has(roleId) },
+      add: async (roleId: string) => void memberRoles.get(id)!.add(roleId),
+    },
+  });
   const calls = {
     onboarding: [] as unknown[],
     edits: [] as Record<string, unknown>[],
@@ -54,6 +68,7 @@ function fakeGuild(opts: { allowCommunity?: boolean; roleIcons?: boolean } = {})
     id: '1',
     features: (opts.roleIcons ? ['ROLE_ICONS'] : []) as string[],
     members: {
+      fetch: async () => new Collection([...memberRoles.keys()].map((id) => [id, fakeMember(id)])),
       fetchMe: async () => ({
         id: '999',
         permissions: new PermissionsBitField(['Administrator']),
@@ -131,7 +146,15 @@ function fakeGuild(opts: { allowCommunity?: boolean; roleIcons?: boolean } = {})
     fetchOnboarding: async () => ({ prompts: new Collection() }),
     editOnboarding: async (data: unknown) => void calls.onboarding.push(data),
   };
-  return { guild: guild as unknown as Guild, roles, channels, calls, raw: guild, iconUploads };
+  return {
+    guild: guild as unknown as Guild,
+    roles,
+    channels,
+    calls,
+    raw: guild,
+    iconUploads,
+    memberRoles,
+  };
 }
 
 function fakeContext() {
@@ -184,6 +207,15 @@ describe('executeBuildout (in-memory guild)', () => {
     expect(ctx.layout.current).toBeDefined();
     expect(fake.raw.features).toContain(GuildFeature.Community);
 
+    // Every bot (not the human) wears the Arkhon Systems role, which sits at the top of the list.
+    const botsRole = [...fake.roles.values()].find((r) => r.name === 'Arkhon Systems');
+    expect(botsRole).toBeDefined();
+    expect(BLUEPRINT.roles[0]?.key).toBe('bots');
+    expect(fake.memberRoles.get('999')?.has(botsRole!.id)).toBe(true);
+    expect(fake.memberRoles.get('777')?.has(botsRole!.id)).toBe(true);
+    expect(fake.memberRoles.get('555')?.has(botsRole!.id)).toBe(false);
+    expect(report.updated).toContain('Arkhon Systems → 2 bots');
+
     const byName = (name: string) => [...fake.channels.values()].find((c) => c.name === name);
     expect(byName(styled('📣・announcements'))?.type).toBe(ChannelType.GuildAnnouncement);
     expect(byName(styled('🎙️ Office Hours'))?.type).toBe(ChannelType.GuildStageVoice);
@@ -216,6 +248,7 @@ describe('executeBuildout (in-memory guild)', () => {
     const report = await build(fake, ctx);
     expect(report.created).toEqual([]);
     expect(fake.channels.size + fake.roles.size).toBe(before);
+    expect(report.updated.some((u) => u.startsWith('Arkhon Systems →'))).toBe(false);
     expect(report.warnings).toEqual([]);
   });
 

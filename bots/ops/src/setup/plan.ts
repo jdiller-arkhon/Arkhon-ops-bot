@@ -25,8 +25,17 @@ export interface PlanItem {
   note?: string;
 }
 
+/** A channel or category in the server that no blueprint resource matched. */
+export interface UnmanagedChannel {
+  id: string;
+  name: string;
+  type: ChannelType;
+}
+
 export interface BuildPlan {
   items: PlanItem[];
+  /** Channels and categories outside the blueprint. Reported in the preview, never touched. */
+  unmanaged: UnmanagedChannel[];
   community: boolean;
   roleIcons: boolean;
 }
@@ -148,7 +157,29 @@ export function planBuildout(snapshot: GuildSnapshot, blueprint: Blueprint = BLU
     }
   }
 
-  return { items, community: snapshot.community, roleIcons: Boolean(snapshot.roleIcons) };
+  const unmanaged = snapshot.channels
+    .filter((channel) => !used.has(channel.id))
+    .map(({ id, name, type }) => ({ id, name, type }));
+
+  return {
+    items,
+    unmanaged,
+    community: snapshot.community,
+    roleIcons: Boolean(snapshot.roleIcons),
+  };
+}
+
+/** Note on a resource that cannot be built yet (e.g. a stage channel before Community). */
+const BLOCKED_NOTE = /^needs /;
+
+/**
+ * Blueprint resources a build would create now: what a server set up by an older version of the
+ * bot is missing. Leaves out ones still waiting on something the build cannot do by itself.
+ */
+export function pendingCreates(plan: BuildPlan): PlanItem[] {
+  return plan.items.filter(
+    (item) => item.action === 'create' && !(item.note && BLOCKED_NOTE.test(item.note)),
+  );
 }
 
 export function summarizePlan(

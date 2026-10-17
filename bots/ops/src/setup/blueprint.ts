@@ -18,7 +18,14 @@ export const CHANNEL_NAME_STYLE: ChannelNameStyle = 'monospace';
  */
 
 export type RoleKey =
-  'team' | 'moderator' | 'certaStaff' | 'argusStaff' | 'certaUser' | 'argusUser' | 'verified';
+  | 'bots'
+  | 'team'
+  | 'moderator'
+  | 'certaStaff'
+  | 'argusStaff'
+  | 'certaUser'
+  | 'argusUser'
+  | 'verified';
 
 /** Who an overwrite applies to: @everyone, the bot itself, or a blueprint role. */
 export type Principal = 'everyone' | 'bot' | RoleKey;
@@ -153,6 +160,21 @@ function privateTo(...roles: RoleKey[]): OverwriteSpec[] {
 
 const BASE_BLUEPRINT: Blueprint = {
   roles: [
+    {
+      // Discord gives every bot a managed role named after it, which no bot can edit (it is the
+      // bot's own top role), so the icon and the "Systems" group in the member list come from
+      // this role instead. It grants nothing: each bot's managed role holds its permissions.
+      // /setup server and the member-join handler give it to every bot in the server.
+      key: 'bots',
+      name: 'Arkhon Systems',
+      icon: 'bots.png',
+      color: 0xcbd5e1,
+      hoist: true,
+      mentionable: false,
+      permissions: [],
+      description:
+        'The Arkhon bots (Praetor, and the Certa and Argus bots). Shown first in the member list.',
+    },
     {
       key: 'team',
       name: 'Arkhon Team',

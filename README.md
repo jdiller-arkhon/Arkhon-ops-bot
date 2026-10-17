@@ -115,14 +115,18 @@ What it builds (defined in `bots/ops/src/setup/blueprint.ts`):
 - **Lettering**: channel names use a monospace look (`👋・𝚠𝚎𝚕𝚌𝚘𝚖𝚎`). Discord has no custom fonts,
   so these are Unicode look-alike letters. Change `CHANNEL_NAME_STYLE` in the blueprint to
   `sansBold`, `sansItalic`, `smallCaps` or `plain` and re-run; existing channels are renamed in place.
-- **Roles**, branded and ordered: Arkhon Team, Moderator, Certa Staff, Argus Staff, Certa User,
-  Argus User, Verified, with colors and permissions per role.
-- **Role icons**: a custom icon for every role (`bots/ops/assets/role-icons`): faceted metal glyphs
-  on a transparent background, cut from the approved design sheet (`src/reference-sheet.png`) by
-  `src/extract.py`. The script cleans stray specks, re-shades the glyphs in the website's
-  charcoal-to-white palette with a bright periwinkle glow, sharpens them, and adds a thin charcoal edge so they
-  read on Discord's light theme too. Discord shows role icons only on servers with Boost Level 2;
-  until then the build skips them and says so.
+- **Roles**, branded and ordered: Arkhon Systems, Arkhon Team, Moderator, Certa Staff, Argus Staff,
+  Certa User, Argus User, Verified, with colors and permissions per role.
+- **Arkhon Systems** (bots): Discord gives each bot a managed role that no bot can edit, so the bots
+  get this role instead for their icon and their own group at the top of the member list. It grants
+  no permissions. `/setup server` gives it to every bot already in the server, and a bot that joins
+  later gets it automatically (the Certa and Argus bots included).
+- **Role icons**: a custom icon for every role (`bots/ops/assets/role-icons`, 128×128 PNG with a
+  transparent background). The staff, user and Verified icons are cut unchanged from the approved
+  design sheet (`src/icon-sheet.png`) by `src/cut.py`; the Arkhon Systems icon is built from the
+  sheet's star by `src/make-bots.py`. Discord shows role icons only on servers with Boost Level 2;
+  until then the build skips them and says so. Icons are uploaded once per role, so a hand-picked
+  icon is never overwritten.
 - **Server settings**: Medium verification, explicit-content filter for all members, mentions-only
   notifications, a curated @everyone permission set, and join messages off (members get a DM).
 - **Community** mode, so announcements can be followed, the feedback forum requires a product tag,
@@ -133,9 +137,16 @@ What it builds (defined in `bots/ops/src/setup/blueprint.ts`):
 
 Options: `server-settings` and `community` (on by default), `onboarding` (off by default: Onboarding would hand out product roles before verification).
 
-Running it again is safe. Resources are matched by the id stored from the previous run, then by
-name, and updated to match the blueprint. Nothing outside the blueprint is touched. Re-running
-resets permissions, topics and names on blueprint channels and roles, and replaces the
+**Catching up after updates.** Run `/setup server` again whenever the bot gains new channels, roles
+or features; it is the one command for both the first build and every update. Resources are matched
+by the id stored from the previous run, then by name, and updated in place, so nothing is ever
+duplicated. The preview says either "Everything in the blueprint already exists" or lists exactly
+which new items it will add, and it lists channels that are not part of the blueprint (such as
+Discord's default #general) so you can remove them by hand; the bot never deletes them. When a
+deploy adds blueprint items the server does not have yet, the bot posts a "Server update
+available" note in #mod-log on startup.
+
+Re-running resets permissions, topics and names on blueprint channels and roles, and replaces the
 Onboarding question it manages. To change the server permanently, edit the blueprint.
 
 `/setup status` shows every channel and role the bot uses, whether it still exists, whether it

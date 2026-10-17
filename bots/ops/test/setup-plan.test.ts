@@ -4,6 +4,7 @@ import { missingBotPermissions, mergeForumTags, resolveOverwrites } from '../src
 import { allChannels, BLUEPRINT } from '../src/setup/blueprint.js';
 import {
   normalizeName,
+  pendingCreates,
   planBuildout,
   summarizePlan,
   type GuildSnapshot,
@@ -77,37 +78,76 @@ describe('planBuildout', () => {
   });
 
   it('is idempotent: a fully built server plans only updates', () => {
-    const stored: Record<string, string> = {};
-    const roles: GuildSnapshot['roles'] = [];
-    const channels: GuildSnapshot['channels'] = [];
-    BLUEPRINT.roles.forEach((role, i) => {
-      stored[`role.${role.key}`] = `r${i}`;
-      roles.push({ id: `r${i}`, name: role.name, managed: false, editable: true });
-    });
-    BLUEPRINT.categories.forEach((category, i) => {
-      stored[`category.${category.key}`] = `k${i}`;
-      channels.push({
-        id: `k${i}`,
-        name: category.name,
-        type: ChannelType.GuildCategory,
-        parentId: null,
-      });
-      category.channels.forEach((channel, j) => {
-        const type = {
-          text: ChannelType.GuildText,
-          announcement: ChannelType.GuildAnnouncement,
-          forum: ChannelType.GuildForum,
-          voice: ChannelType.GuildVoice,
-          stage: ChannelType.GuildStageVoice,
-        }[channel.kind];
-        stored[`channel.${channel.key}`] = `c${i}-${j}`;
-        channels.push({ id: `c${i}-${j}`, name: channel.name, type, parentId: `k${i}` });
-      });
-    });
-    const plan = planBuildout({ roles, channels, stored, community: true });
+    const plan = planBuildout(builtSnapshot());
     expect(plan.items.every((i) => i.action === 'update')).toBe(true);
+    expect(pendingCreates(plan)).toEqual([]);
+    expect(plan.unmanaged).toEqual([]);
+  });
+
+  it('catches up a server built by an older version without duplicating anything', () => {
+    // Older build: no Arkhon Systems role, no #showcase, plus a leftover #general of the admin's own.
+    const snapshot = builtSnapshot();
+    const showcase = allChannels().find((c) => c.key === 'showcase')!;
+    const showcaseId = snapshot.stored['channel.showcase']!;
+    delete snapshot.stored['role.bots'];
+    delete snapshot.stored['channel.showcase'];
+    snapshot.roles = snapshot.roles.filter((r) => r.name !== 'Arkhon Systems');
+    snapshot.channels = snapshot.channels.filter((c) => c.id !== showcaseId);
+    snapshot.channels.push({
+      id: 'leftover',
+      name: 'general',
+      type: ChannelType.GuildText,
+      parentId: null,
+    });
+
+    const plan = planBuildout(snapshot);
+    expect(pendingCreates(plan).map((i) => i.key)).toEqual(['role.bots', 'channel.showcase']);
+    expect(pendingCreates(plan).map((i) => i.name)).toEqual(['Arkhon Systems', showcase.name]);
+    expect(plan.items.filter((i) => i.action === 'update')).toHaveLength(plan.items.length - 2);
+    expect(plan.unmanaged).toEqual([
+      { id: 'leftover', name: 'general', type: ChannelType.GuildText },
+    ]);
+  });
+
+  it('does not count resources still waiting on Community as pending', () => {
+    const plan = planBuildout(empty);
+    const pending = pendingCreates(plan).map((i) => i.key);
+    expect(pending).toContain('channel.announcements');
+    expect(pending).not.toContain('channel.officeHours');
   });
 });
+
+/** A snapshot of a server the current blueprint fully built. */
+function builtSnapshot(): GuildSnapshot {
+  const stored: Record<string, string> = {};
+  const roles: GuildSnapshot['roles'] = [];
+  const channels: GuildSnapshot['channels'] = [];
+  BLUEPRINT.roles.forEach((role, i) => {
+    stored[`role.${role.key}`] = `r${i}`;
+    roles.push({ id: `r${i}`, name: role.name, managed: false, editable: true });
+  });
+  BLUEPRINT.categories.forEach((category, i) => {
+    stored[`category.${category.key}`] = `k${i}`;
+    channels.push({
+      id: `k${i}`,
+      name: category.name,
+      type: ChannelType.GuildCategory,
+      parentId: null,
+    });
+    category.channels.forEach((channel, j) => {
+      const type = {
+        text: ChannelType.GuildText,
+        announcement: ChannelType.GuildAnnouncement,
+        forum: ChannelType.GuildForum,
+        voice: ChannelType.GuildVoice,
+        stage: ChannelType.GuildStageVoice,
+      }[channel.kind];
+      stored[`channel.${channel.key}`] = `c${i}-${j}`;
+      channels.push({ id: `c${i}-${j}`, name: channel.name, type, parentId: `k${i}` });
+    });
+  });
+  return { roles, channels, stored, community: true };
+}
 
 describe('normalizeName', () => {
   it('ignores case, spaces and emoji variation selectors', () => {

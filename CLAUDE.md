@@ -129,7 +129,8 @@ Run `pnpm typecheck && pnpm lint && pnpm test` before committing. All three must
 `bots/ops/src/setup/blueprint.ts`; that file is the source of truth for who can see and post where.
 Summary of the model:
 
-- Role order (top to bottom): the bot's own role, Arkhon Team, Moderator, Certa Staff, Argus Staff,
+- Role order (top to bottom): the bot's own role, Arkhon Systems (every bot; icon only, no
+  permissions), Arkhon Team, Moderator, Certa Staff, Argus Staff,
   Certa User, Argus User, Verified (lowest so product colors show). The bot's role must be at the top; it can only manage roles below it.
 - **Arkhon Team** is staff for every product (tickets, /ticket, /mod). **Certa/Argus Staff** handle
   their product's tickets. **Moderator** can use /mod, /member lookup|find and /security, and sees product

@@ -18,7 +18,12 @@ import { fileURLToPath } from 'node:url';
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const dir = join(root, 'prisma', 'd1-migrations');
 const schema = join(root, 'prisma', '.generated', 'd1.prisma');
-const bin = join(root, 'node_modules', '.bin', process.platform === 'win32' ? 'prisma.cmd' : 'prisma');
+const bin = join(
+  root,
+  'node_modules',
+  '.bin',
+  process.platform === 'win32' ? 'prisma.cmd' : 'prisma',
+);
 
 function prisma(args) {
   const res = spawnSync(existsSync(bin) ? bin : 'prisma', args, {
@@ -44,7 +49,11 @@ if (!existsSync(schema)) {
   process.exit(1);
 }
 
-const files = existsSync(dir) ? readdirSync(dir).filter((f) => f.endsWith('.sql')).sort() : [];
+const files = existsSync(dir)
+  ? readdirSync(dir)
+      .filter((f) => f.endsWith('.sql'))
+      .sort()
+  : [];
 const tmp = mkdtempSync(join(tmpdir(), 'd1-'));
 const url = `file:${join(tmp, 'replay.db')}`;
 let diff;
@@ -54,7 +63,15 @@ try {
   } else {
     writeFileSync(join(tmp, 'replay.db'), '');
     for (const f of files) prisma(['db', 'execute', '--url', url, '--file', join(dir, f)]);
-    diff = prisma(['migrate', 'diff', '--from-url', url, '--to-schema-datamodel', schema, '--script']);
+    diff = prisma([
+      'migrate',
+      'diff',
+      '--from-url',
+      url,
+      '--to-schema-datamodel',
+      schema,
+      '--script',
+    ]);
   }
 } finally {
   rmSync(tmp, { recursive: true, force: true });
@@ -66,7 +83,9 @@ if (command === 'check') {
     console.log(`D1 migrations are up to date (${files.length} files).`);
     process.exit(0);
   }
-  console.error('prisma/d1-migrations lags prisma/schema.prisma. Run: node scripts/d1-migrations.mjs new <name>');
+  console.error(
+    'prisma/d1-migrations lags prisma/schema.prisma. Run: node scripts/d1-migrations.mjs new <name>',
+  );
   process.exit(1);
 }
 if (!name || !/^[a-z0-9_]+$/.test(name)) {

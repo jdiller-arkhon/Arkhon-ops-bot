@@ -6,10 +6,12 @@ import type { OpsContext } from './context.js';
 import { openDatabase } from './db.js';
 import { onFeedbackReaction, onFeedbackThreadCreate } from './feedback/forum.js';
 import { createInteractionHandler } from './interactions.js';
+import { onBotJoin } from './onboarding/bot-role.js';
 import { sendWelcomeDm } from './onboarding/welcome.js';
 import { startPresenceRotation } from './presence.js';
 import { createWebhookServer } from './releases/server.js';
 import { onTicketMessage } from './tickets/service.js';
+import { notifyPendingBlueprint } from './setup/notice.js';
 import { runLayoutTasks } from './startup.js';
 import { LayoutStore } from './layout.js';
 import { CommunityApi } from './verification/api.js';
@@ -85,6 +87,9 @@ async function main(): Promise<void> {
     }
     if (ctx.layout.current) {
       await runLayoutTasks(ctx, guild);
+      await notifyPendingBlueprint(ctx, guild).catch((error: unknown) =>
+        logger.warn({ err: error }, 'could not check the blueprint for new resources'),
+      );
       if (ctx.security.api) {
         // Website events are best-effort; this keeps Discord in line with the website.
         const every = config.verification.reconcileMinutes * 60_000;
@@ -106,6 +111,15 @@ async function main(): Promise<void> {
 
   client.on(Events.InteractionCreate, createInteractionHandler(ctx, commands));
   client.on(Events.GuildMemberAdd, (member) => {
+    if (member.user.bot) {
+      onBotJoin(ctx, member).catch((error: unknown) =>
+        logger.error(
+          { err: error, userId: member.id },
+          'could not give a bot the Arkhon Systems role',
+        ),
+      );
+      return;
+    }
     void sendWelcomeDm(member, ctx);
     onMemberJoinShield(ctx, member).catch((error: unknown) =>
       logger.error({ err: error }, 'raid shield failed'),
