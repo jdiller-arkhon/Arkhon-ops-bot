@@ -102,6 +102,9 @@ export const fleetAircraftSchema = z.object({
   makeModel: z.string().min(1),
   status: z.enum(['active', 'grounded', 'retired']),
   groundedReason: z.string().nullable(),
+  /** FAA registration number, e.g. FA3XXXXXXX. */
+  registrationNumber: z.string().nullable(),
+  serialNumber: z.string().min(1),
   registrationExpiresOn: isoDate.nullable(),
   /** Next scheduled maintenance, or null if none is scheduled. */
   maintenanceDueOn: isoDate.nullable(),
@@ -127,3 +130,37 @@ export const fleetSchema = z.object({
   batteries: z.array(fleetBatterySchema),
 });
 export type Fleet = z.infer<typeof fleetSchema>;
+
+/** What to look up. Exactly one is set. */
+export type VerifyQuery =
+  | { kind: 'certificateNumber'; value: string }
+  | { kind: 'registration'; value: string }
+  | { kind: 'serialNumber'; value: string };
+
+const levelSchema = z.enum(['green', 'amber', 'red']);
+
+/**
+ * Certa's verification answer (GET /api/v1/verify/lookup). For pilots, Certa's `identifier` is the
+ * remote pilot certificate number: it is dropped here so it never reaches Discord or the bot's logs.
+ */
+export const verificationSchema = z
+  .object({
+    subject: z.object({
+      type: z.enum(['pilot', 'aircraft']),
+      name: z.string().min(1),
+      identifier: z.string().nullable(),
+    }),
+    legalToFly: z.boolean(),
+    status: levelSchema,
+    reasons: z.array(
+      z.object({ level: levelSchema, text: z.string(), dueOn: z.string().nullable() }),
+    ),
+    asOf: z.string(),
+    ruleSet: z.string(),
+    notice: z.string(),
+  })
+  .transform((v) => ({
+    ...v,
+    subject: { ...v.subject, identifier: v.subject.type === 'pilot' ? null : v.subject.identifier },
+  }));
+export type Verification = z.output<typeof verificationSchema>;

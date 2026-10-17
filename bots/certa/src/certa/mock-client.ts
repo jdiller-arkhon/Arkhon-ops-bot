@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { isUniqueViolation } from '@arkhon/shared';
 import type { PrismaClient } from '@prisma/client';
 import { DateTime } from 'luxon';
+import { verifyAircraft } from '../domain/fleet.js';
 import { mockFleet } from '../domain/mock-fleet.js';
 import { computeTotals, rankLeaderboard } from '../domain/mock-math.js';
 import { type CertaClient, CertaInvalidLinkCodeError, CertaUserNotFoundError } from './client.js';
@@ -9,6 +10,8 @@ import {
   flightInputSchema,
   type CurrencyStatus,
   type Fleet,
+  type Verification,
+  type VerifyQuery,
   type FlightInput,
   type FlightTotals,
   type LeaderboardEntry,
@@ -113,6 +116,26 @@ export class MockCertaClient implements CertaClient {
   async getFleet(certaUserId: string): Promise<Fleet> {
     await this.requireUser(certaUserId);
     return mockFleet(certaUserId, this.now().toISODate()!);
+  }
+
+  /**
+   * Aircraft lookups search every mock pilot's demo fleet. Pilot lookups never match: the mock
+   * backend keeps no certificate numbers (the bot never stores government ID numbers).
+   */
+  async verify(query: VerifyQuery): Promise<Verification | null> {
+    if (query.kind === 'certificateNumber') return null;
+    const today = this.now().toISODate()!;
+    const want = query.value.trim().toUpperCase();
+    const users = await this.prisma.certaMockUser.findMany({ select: { certaUserId: true } });
+    for (const { certaUserId } of users) {
+      const match = mockFleet(certaUserId, today).aircraft.find((a) =>
+        query.kind === 'registration'
+          ? a.registrationNumber?.toUpperCase() === want
+          : a.serialNumber.toUpperCase() === want,
+      );
+      if (match) return verifyAircraft(match, today);
+    }
+    return null;
   }
 
   async getLeaderboard(

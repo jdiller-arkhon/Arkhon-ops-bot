@@ -1,4 +1,4 @@
-import type { FleetAircraft, FleetBattery } from '../certa/types.js';
+import type { FleetAircraft, FleetBattery, Verification } from '../certa/types.js';
 import type { CurrencySummary } from './currency.js';
 import { daysUntil } from './currency.js';
 import type { LightPeriod } from './daylight.js';
@@ -117,4 +117,24 @@ export function pickAircraft(fleet: FleetAircraft[], query: string | null): Flee
     fleet.find((a) => a.name.toLowerCase().includes(q) || a.makeModel.toLowerCase().includes(q)) ??
     null
   );
+}
+
+/** Certa-style verification of one aircraft from fleet records (used by the mock backend). */
+export function verifyAircraft(a: FleetAircraft, today: string): Verification {
+  const check = aircraftCheck(a, today);
+  return {
+    subject: {
+      type: 'aircraft',
+      name: `${a.name} (${a.makeModel})`,
+      identifier: a.registrationNumber,
+    },
+    legalToFly: check.level !== 'red',
+    status: check.level,
+    reasons:
+      check.level === 'green' ? [] : [{ level: check.level, text: check.detail, dueOn: null }],
+    asOf: today,
+    ruleSet: 'FAA Part 107 (mock)',
+    notice:
+      'Computed from records entered by the operator. Advisory only: the remote pilot in command remains responsible for compliance.',
+  };
 }

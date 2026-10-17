@@ -19,6 +19,8 @@ const ac = (over: Partial<FleetAircraft> = {}): FleetAircraft => ({
   makeModel: 'DJI Mavic 3 Enterprise',
   status: 'active',
   groundedReason: null,
+  registrationNumber: 'FA3TEST001',
+  serialNumber: 'DJ00000001',
   registrationExpiresOn: '2028-01-01',
   maintenanceDueOn: '2026-12-01',
   totalFlights: 10,
@@ -133,5 +135,28 @@ describe('daylight', () => {
     expect(lightPeriod(new Date('2026-06-21T18:00:00Z'), t)).toBe('day');
     expect(lightPeriod(new Date(t.sunset!.getTime() + 10 * 60_000), t)).toBe('civil-twilight');
     expect(lightPeriod(new Date('2026-06-22T05:00:00Z'), t)).toBe('night');
+  });
+});
+
+describe('verify', () => {
+  it('normalizes and validates identifiers', async () => {
+    const { parseVerifyQuery } = await import('../src/commands/verify.js');
+    expect(parseVerifyQuery('registration', ' fa3 abc 123 ')).toEqual({
+      kind: 'registration',
+      value: 'FA3ABC123',
+    });
+    expect(() => parseVerifyQuery('certificate', 'x!')).toThrow();
+  });
+  it('verifies a mock aircraft from fleet records', async () => {
+    const { verifyAircraft } = await import('../src/domain/fleet.js');
+    const f = mockFleet('mock-123', TODAY);
+    const ok = verifyAircraft(f.aircraft[0]!, TODAY);
+    expect(ok).toMatchObject({ legalToFly: true, status: 'green' });
+    expect(ok.subject.identifier).toMatch(/^FA[0-9A-Z]{8}$/);
+    const grounded = verifyAircraft(
+      { ...f.aircraft[0]!, status: 'grounded', groundedReason: null },
+      TODAY,
+    );
+    expect(grounded).toMatchObject({ legalToFly: false, status: 'red' });
   });
 });

@@ -32,6 +32,9 @@ export function mockFleet(certaUserId: string, today: string): Fleet {
     makeModel: `${a.make} ${a.model}`,
     status: 'active',
     groundedReason: null,
+    // Shaped like real FAA registrations (FA + 8 characters) but derived from the mock id.
+    registrationNumber: `FA${(h >>> (i * 3)).toString(36).toUpperCase().padStart(8, '0').slice(-8)}`,
+    serialNumber: `${a.make.slice(0, 2).toUpperCase()}${((h >>> (i * 4)) % 1e8).toString().padStart(8, '0')}`,
     // The second aircraft's registration is up soon; the first has years left.
     registrationExpiresOn: date(i === 0 ? 700 + (h % 300) : 20 + (h % 25)),
     maintenanceDueOn: date(i === 0 ? 30 + (h % 40) : 5 + (h % 10)),

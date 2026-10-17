@@ -8,6 +8,8 @@ import type {
   LeaderboardPeriod,
   LinkResult,
   LogFlightResult,
+  Verification,
+  VerifyQuery,
 } from './types.js';
 
 /**
@@ -21,6 +23,8 @@ export interface CertaClient {
   getCurrency(certaUserId: string): Promise<CurrencyStatus>;
   /** Aircraft and batteries the pilot flies (their organization's fleet in Certa). */
   getFleet(certaUserId: string): Promise<Fleet>;
+  /** Is this pilot or aircraft legal to fly, per Certa's records? Null if nothing matches. */
+  verify(query: VerifyQuery): Promise<Verification | null>;
   getLeaderboard(
     period: LeaderboardPeriod,
     options?: LeaderboardOptions,
@@ -39,6 +43,11 @@ export class CertaInvalidLinkCodeError extends CertaError {
 /** The Certa user no longer exists (e.g. account deleted after linking). */
 export class CertaUserNotFoundError extends CertaError {
   override name = 'CertaUserNotFoundError';
+}
+
+/** The looked-up record does not exist. */
+export class CertaNotFoundError extends CertaError {
+  override name = 'CertaNotFoundError';
 }
 
 /** The backend rejected the request payload (HTTP 400/422). */

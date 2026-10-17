@@ -143,3 +143,37 @@ describe('HttpCertaClient', () => {
     );
   });
 });
+
+describe('verify lookup', () => {
+  const answer = (type: 'pilot' | 'aircraft', identifier: string | null) => ({
+    subject: { type, id: 'x1', name: 'Sam Pilot', identifier },
+    legalToFly: true,
+    status: 'green',
+    reasons: [],
+    asOf: '2026-10-17',
+    checkedAt: '2026-10-17T12:00:00Z',
+    ruleSet: 'FAA Part 107 v1',
+    notice: 'Advisory only.',
+  });
+
+  it('queries by registration and keeps the aircraft registration', async () => {
+    const { certa, calls } = client([json(200, answer('aircraft', 'FA3ABCDEFG'))]);
+    const r = await certa.verify({ kind: 'registration', value: 'FA3ABCDEFG' });
+    expect(calls[0]!.url).toBe(
+      'https://certa.example.com/api/v1/verify/lookup?registration=FA3ABCDEFG',
+    );
+    expect(r?.subject.identifier).toBe('FA3ABCDEFG');
+  });
+
+  it('drops the certificate number from pilot answers', async () => {
+    const { certa } = client([json(200, answer('pilot', '4123456'))]);
+    const r = await certa.verify({ kind: 'certificateNumber', value: '4123456' });
+    expect(r?.subject.identifier).toBeNull();
+    expect(JSON.stringify(r)).not.toContain('4123456');
+  });
+
+  it('returns null when nothing matches', async () => {
+    const { certa } = client([json(404, { message: 'not found' })]);
+    expect(await certa.verify({ kind: 'serialNumber', value: 'ZZ1' })).toBeNull();
+  });
+});

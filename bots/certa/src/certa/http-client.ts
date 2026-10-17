@@ -12,6 +12,7 @@ import {
   CertaAuthError,
   CertaError,
   CertaInvalidLinkCodeError,
+  CertaNotFoundError,
   CertaRejectedError,
   CertaResponseError,
   CertaUnavailableError,
@@ -33,6 +34,9 @@ import {
   linkResultSchema,
   type LogFlightResult,
   logFlightResultSchema,
+  type Verification,
+  verificationSchema,
+  type VerifyQuery,
 } from './types.js';
 
 export interface HttpCertaClientOptions {
@@ -45,7 +49,7 @@ export interface HttpCertaClientOptions {
   sleep?: (ms: number) => Promise<void>;
 }
 
-type NotFoundMeaning = 'user' | 'link-code';
+type NotFoundMeaning = 'user' | 'link-code' | 'record';
 
 /**
  * Certa REST client. Every request uses a bearer token, a 10s per-attempt
@@ -93,6 +97,18 @@ export class HttpCertaClient implements CertaClient {
     return this.call(fleetSchema, 'GET', `/v1/users/${encodeURIComponent(certaUserId)}/fleet`, {
       notFound: 'user',
     });
+  }
+
+  async verify(query: VerifyQuery): Promise<Verification | null> {
+    const params = new URLSearchParams({ [query.kind]: query.value });
+    try {
+      return await this.call(verificationSchema, 'GET', `/v1/verify/lookup?${params}`, {
+        notFound: 'record',
+      });
+    } catch (error) {
+      if (error instanceof CertaNotFoundError) return null;
+      throw error;
+    }
   }
 
   async getCurrency(certaUserId: string): Promise<CurrencyStatus> {
@@ -177,6 +193,7 @@ function translateError(error: unknown, notFound: NotFoundMeaning | undefined): 
         detail ?? 'Link code is invalid, expired, or already used',
       );
     }
+    if (error.status === 404 && notFound === 'record') return new CertaNotFoundError('No match');
     if (error.status === 404 && notFound === 'user')
       return new CertaUserNotFoundError(detail ?? 'Certa user not found');
     if (error.status === 400 || error.status === 409 || error.status === 422) {
