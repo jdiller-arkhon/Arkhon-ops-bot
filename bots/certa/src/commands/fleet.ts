@@ -45,6 +45,9 @@ export async function execute(
       name: `${DOT[check.level]} ${a.name} · ${a.makeModel}`,
       value: [
         check.detail,
+        ...(a.registrationNumber
+          ? [`Registration \`${a.registrationNumber}\` · S/N \`${a.serialNumber}\``]
+          : []),
         `${a.totalFlights} flights · ${formatHours(a.totalMinutes)}`,
         ...(packs.length ? ['**Batteries**', ...packs] : []),
       ].join('\n'),
