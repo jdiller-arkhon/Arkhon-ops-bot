@@ -80,6 +80,8 @@ export function missingBotPermissions(
 export interface OverwriteIds {
   guildId: string;
   botId: string;
+  /** The Certa bot's user id (= its application id), when configured. */
+  certaBotId?: string;
   roles: Partial<Record<RoleKey, string>>;
 }
 
@@ -97,6 +99,9 @@ export function resolveOverwrites(
       type = OverwriteType.Role;
     } else if (spec.principal === 'bot') {
       id = ids.botId;
+      type = OverwriteType.Member;
+    } else if (spec.principal === 'certaBot') {
+      id = ids.certaBotId;
       type = OverwriteType.Member;
     } else {
       id = ids.roles[spec.principal];
@@ -199,6 +204,7 @@ export async function executeBuildout(
   const overwriteIds = (): OverwriteIds => ({
     guildId: guild.id,
     botId: me.id,
+    ...(ctx.config.discord.certaBotId ? { certaBotId: ctx.config.discord.certaBotId } : {}),
     roles: Object.fromEntries(
       blueprint.roles.map((role) => [role.key, ids[`role.${role.key}`]]).filter(([, id]) => id),
     ) as Partial<Record<RoleKey, string>>,

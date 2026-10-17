@@ -1,7 +1,6 @@
-import { arkhonEmbed, PRODUCTS } from '@arkhon/shared';
+import { arkhonEmbed, PRODUCTS, isUniqueViolation } from '@arkhon/shared';
 import type { Guild, GuildMember, PartialGuildMember } from 'discord.js';
 import type { OpsContext } from '../context.js';
-import { isUniqueViolation } from '../db.js';
 import { isStaff } from '../permissions.js';
 import { recordVerificationEvent } from './audit.js';
 

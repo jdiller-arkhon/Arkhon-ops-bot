@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createD1Bridge } from '../../../bots/ops/src/d1/bridge.js';
+import { createD1Bridge } from '../../../packages/shared/src/d1-client.js';
 import {
   decodeD1Value,
   encodeD1Value,

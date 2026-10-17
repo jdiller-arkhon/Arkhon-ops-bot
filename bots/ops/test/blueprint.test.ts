@@ -1,4 +1,4 @@
-import { PermissionFlagsBits } from 'discord.js';
+import { OverwriteType, PermissionFlagsBits } from 'discord.js';
 import { describe, expect, it } from 'vitest';
 import { OPTIONAL_RESOURCES, REQUIRED_RESOURCES } from '../src/layout.js';
 import {
@@ -58,7 +58,11 @@ describe('blueprint integrity', () => {
         ...category.overwrites,
         ...category.channels.flatMap((c) => c.overwrites ?? []),
       ]) {
-        if (spec.principal !== 'everyone' && spec.principal !== 'bot') {
+        if (
+          spec.principal !== 'everyone' &&
+          spec.principal !== 'bot' &&
+          spec.principal !== 'certaBot'
+        ) {
           expect(roleKeys.has(spec.principal)).toBe(true);
         }
       }
@@ -158,6 +162,7 @@ describe('resolved overwrites', () => {
     const ids = {
       guildId: 'g',
       botId: 'b',
+      certaBotId: 'c',
       roles: Object.fromEntries(BLUEPRINT.roles.map((r) => [r.key, `role-${r.key}`])),
     };
     for (const category of BLUEPRINT.categories) {
@@ -172,6 +177,37 @@ describe('resolved overwrites', () => {
         ).map((o) => String(o.id));
         expect(new Set(chIds).size, channel.name).toBe(chIds.length);
       }
+    }
+  });
+});
+
+describe('Certa bot access', () => {
+  const certa = BLUEPRINT.categories.find((c) => c.key === 'certa')!;
+  const base = { guildId: 'g', botId: 'b', roles: { certaUser: 'r-user' } };
+
+  it('lets the Certa bot post in every Certa channel once its id is configured', () => {
+    for (const channel of certa.channels) {
+      const merged = mergeOverwrites(certa.overwrites, channel.overwrites);
+      const resolved = resolveOverwrites(merged, { ...base, certaBotId: 'certa-bot' });
+      const forBot = resolved.find((o) => o.id === 'certa-bot');
+      expect(forBot, channel.name).toMatchObject({ type: OverwriteType.Member });
+      expect(forBot?.allow).toEqual(
+        expect.arrayContaining(['ViewChannel', 'SendMessages', 'EmbedLinks']),
+      );
+    }
+  });
+
+  it('leaves the Certa bot out until CERTA_DISCORD_CLIENT_ID is set', () => {
+    const resolved = resolveOverwrites(mergeOverwrites(certa.overwrites), base);
+    expect(resolved.map((o) => o.id)).not.toContain(undefined);
+    expect(resolved.some((o) => o.type === OverwriteType.Member && o.id !== 'b')).toBe(false);
+  });
+
+  it('keeps #flight-logs and #preflight bot-only for members', () => {
+    for (const key of ['certaFlightLogs', 'certaPreflight']) {
+      const channel = certa.channels.find((c) => c.key === key)!;
+      const merged = mergeOverwrites(certa.overwrites, channel.overwrites);
+      expect(merged.find((o) => o.principal === 'certaUser')?.deny).toContain('SendMessages');
     }
   });
 });

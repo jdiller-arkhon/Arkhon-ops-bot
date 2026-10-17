@@ -8,7 +8,7 @@
   },
   "scripts": {
     "postinstall": "node scripts/prisma.mjs generate",
-    "build": "tsc -b bots/ops",
+    "build": "tsc -b bots/ops bots/certa",
     "typecheck": "tsc -p tsconfig.json && tsc -p deploy/cloudflare",
     "test": "vitest run",
     "test:watch": "vitest",
@@ -21,7 +21,10 @@
     "db:studio": "node scripts/prisma.mjs studio",
     "dev:ops": "pnpm --filter @arkhon/ops-bot dev",
     "start:ops": "pnpm --filter @arkhon/ops-bot start",
+    "dev:certa": "pnpm --filter @arkhon/certa-bot dev",
+    "start:certa": "pnpm --filter @arkhon/certa-bot start",
     "deploy:commands": "pnpm --filter @arkhon/ops-bot deploy:commands",
+    "deploy:commands:certa": "pnpm --filter @arkhon/certa-bot deploy:commands",
     "deploy:cloudflare": "pnpm --filter @arkhon/cloudflare run deploy"
   },
   "dependencies": {

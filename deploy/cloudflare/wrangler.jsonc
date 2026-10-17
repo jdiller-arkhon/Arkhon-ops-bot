@@ -1,5 +1,5 @@
 // Cloudflare deployment for the Arkhon bots. See README "Hosting on Cloudflare".
-// `wrangler deploy` builds bots/ops/Dockerfile with the repository root as build context,
+// `wrangler deploy` builds each bot's Dockerfile (bots/ops, bots/certa) with the repository root as build context,
 // so Docker must be running on the machine that deploys.
 {
   "$schema": "node_modules/wrangler/config-schema.json",
@@ -18,12 +18,26 @@
       // Exactly one gateway connection; a second instance would answer every event twice.
       "max_instances": 1,
     },
+    {
+      "class_name": "CertaBot",
+      "image": "../../bots/certa/Dockerfile",
+      "image_build_context": "../..",
+      // discord.js and Prisma only (no webhook server): the same small instance as the Ops bot.
+      "instance_type": "basic",
+      "max_instances": 1,
+    },
   ],
 
   "durable_objects": {
-    "bindings": [{ "name": "OPS_BOT", "class_name": "OpsBot" }],
+    "bindings": [
+      { "name": "OPS_BOT", "class_name": "OpsBot" },
+      { "name": "CERTA_BOT", "class_name": "CertaBot" },
+    ],
   },
-  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["OpsBot"] }],
+  "migrations": [
+    { "tag": "v1", "new_sqlite_classes": ["OpsBot"] },
+    { "tag": "v2", "new_sqlite_classes": ["CertaBot"] },
+  ],
 
   // The bots' database (D1, created in the Cloudflare account). The bot applies
   // prisma/d1-migrations itself on startup.

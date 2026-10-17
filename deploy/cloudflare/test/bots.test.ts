@@ -10,6 +10,7 @@ import {
   missingRequired,
   workerSecrets,
 } from '../src/bots.js';
+import { certaEnvSchema } from '../../../bots/certa/src/config.js';
 
 const root = new URL('../../../', import.meta.url);
 
@@ -32,7 +33,7 @@ function wranglerConfig(): {
 }
 
 describe('Cloudflare bot deployment', () => {
-  it('passes every bot setting from .env.example to the ops container', () => {
+  it('passes every bot setting from .env.example to some bot container', () => {
     // Fixed by the deployment (NODE_ENV, WEBHOOK_PORT, D1 instead of DATABASE_URL) or only used by
     // docker-compose (POSTGRES_*).
     const fixed = new Set([
@@ -46,7 +47,31 @@ describe('Cloudflare bot deployment', () => {
     const expected = envExampleKeys()
       .filter((key) => !fixed.has(key))
       .sort();
-    expect([...BOTS.ops.envKeys].sort()).toEqual(expected);
+    const all = [...new Set(Object.values(BOTS).flatMap((bot) => [...bot.envKeys]))].sort();
+    expect(all).toEqual(expected);
+  });
+
+  it('gives the Certa bot exactly the settings its config reads, and never the Ops token', () => {
+    const schemaKeys = Object.keys(certaEnvSchema.innerType().innerType().shape).filter(
+      (key) => !['NODE_ENV', 'WEBHOOK_PORT', 'DATABASE_URL', 'D1_BRIDGE_URL'].includes(key),
+    );
+    expect([...BOTS.certa.envKeys].sort()).toEqual(schemaKeys.sort());
+    const env = containerEnv(BOTS.certa, {
+      DISCORD_TOKEN: 'ops-token',
+      CERTA_DISCORD_TOKEN: 'certa-token',
+    });
+    expect(env).toEqual({
+      CERTA_DISCORD_TOKEN: 'certa-token',
+      NODE_ENV: 'production',
+      WEBHOOK_PORT: '3001',
+      D1_BRIDGE_URL: 'http://d1.internal',
+    });
+    expect(BOTS.certa.paths).toEqual([]);
+    expect(missingRequired(BOTS.certa, env)).toEqual([
+      'CERTA_DISCORD_CLIENT_ID',
+      'DISCORD_GUILD_ID',
+      'CERTA_API_MODE',
+    ]);
   });
 
   it('forwards exactly the routes the ops bot serves', () => {

@@ -44,6 +44,10 @@ export const opsEnvSchema = baseEnvSchema
     CERTA_USER_ROLE_ID: optionalSnowflake,
     ARGUS_USER_ROLE_ID: optionalSnowflake,
 
+    // The Certa bot's application id. When set, /setup server lets the Certa bot see and post in
+    // the Certa channels (it is a separate Discord application with its own token).
+    CERTA_DISCORD_CLIENT_ID: optionalSnowflake,
+
     // Tickets
     TICKET_MODE: z.enum(['thread', 'channel']).default('thread'),
     TICKET_CATEGORY_ID: optionalSnowflake,
@@ -120,6 +124,7 @@ export const opsEnvSchema = baseEnvSchema
       token: env.DISCORD_TOKEN,
       clientId: env.DISCORD_CLIENT_ID,
       guildId: env.DISCORD_GUILD_ID,
+      certaBotId: env.CERTA_DISCORD_CLIENT_ID,
     },
     layoutOverrides: compact({
       'channel.support': env.SUPPORT_CHANNEL_ID,

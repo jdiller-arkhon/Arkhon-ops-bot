@@ -33,6 +33,7 @@ const STARTED_WITH = 'startedWithEnv';
 
 interface Env {
   OPS_BOT: DurableObjectNamespace<OpsBot>;
+  CERTA_BOT: DurableObjectNamespace<CertaBot>;
   DB: D1Database;
   [key: string]: unknown;
 }
@@ -93,7 +94,20 @@ OpsBot.outboundByHost = {
   [D1_BRIDGE_HOST]: (request: Request, env: Env) => handleD1BridgeRequest(request, env.DB),
 };
 
-function instance(env: Env, bot: BotDeployment): DurableObjectStub<OpsBot> {
+export class CertaBot extends BotContainer {
+  override defaultPort = BOTS.certa.port;
+
+  constructor(ctx: ConstructorParameters<typeof Container>[0], env: Env) {
+    super(ctx, env);
+    this.envVars = containerEnv(BOTS.certa, env);
+  }
+}
+
+CertaBot.outboundByHost = {
+  [D1_BRIDGE_HOST]: (request: Request, env: Env) => handleD1BridgeRequest(request, env.DB),
+};
+
+function instance(env: Env, bot: BotDeployment): DurableObjectStub<BotContainer> {
   return env[bot.binding].getByName(INSTANCE_NAME);
 }
 

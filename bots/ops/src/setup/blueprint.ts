@@ -27,8 +27,11 @@ export type RoleKey =
   | 'argusUser'
   | 'verified';
 
-/** Who an overwrite applies to: @everyone, the bot itself, or a blueprint role. */
-export type Principal = 'everyone' | 'bot' | RoleKey;
+/**
+ * Who an overwrite applies to: @everyone, this bot, the Certa bot (skipped until
+ * CERTA_DISCORD_CLIENT_ID is set), or a blueprint role.
+ */
+export type Principal = 'everyone' | 'bot' | 'certaBot' | RoleKey;
 
 export interface OverwriteSpec {
   principal: Principal;
@@ -142,6 +145,17 @@ const VERIFIED_ONLY: OverwriteSpec[] = [
   { principal: 'everyone', deny: ['ViewChannel'] },
   { principal: 'verified', allow: ['ViewChannel'] },
   ...STAFF_ROLES.map((principal) => ({ principal, allow: ['ViewChannel'] as PermissionsString[] })),
+];
+
+/** The Certa bot (its own Discord application) posts flight shares, preflight and leaderboards. */
+const CERTA_BOT_POSTER: OverwriteSpec = {
+  principal: 'certaBot',
+  allow: ['ViewChannel', 'SendMessages', 'EmbedLinks', 'ReadMessageHistory'],
+};
+
+/** Certa channels only the Certa bot posts in; members react and discuss in threads. */
+const CERTA_BOT_ONLY: OverwriteSpec[] = [
+  { principal: 'certaUser', deny: ['SendMessages'], allow: ['SendMessagesInThreads'] },
 ];
 
 /** Hidden from everyone except the given roles, staff and the bot. */
@@ -456,6 +470,7 @@ const BASE_BLUEPRINT: Blueprint = {
       overwrites: [
         ...privateTo('certaUser', 'certaStaff', 'moderator'),
         { principal: 'certaStaff', allow: ['ManageMessages', 'ManageThreads'] },
+        CERTA_BOT_POSTER,
       ],
       channels: [
         {
@@ -477,6 +492,22 @@ const BASE_BLUEPRINT: Blueprint = {
           name: '📋・certa-compliance',
           kind: 'text',
           topic: 'Regulations, audits, waivers and logbook exports. Not legal advice.',
+        },
+        {
+          key: 'certaFlightLogs',
+          name: '📒・flight-logs',
+          kind: 'text',
+          topic:
+            'Flights pilots share from /log. Posted by the Certa bot; react and reply in threads.',
+          overwrites: CERTA_BOT_ONLY,
+        },
+        {
+          key: 'certaPreflight',
+          name: '🌤️・preflight',
+          kind: 'text',
+          topic:
+            'Daily preflight conditions from the Certa bot. Advisory only: check official sources and get LAANC or DroneZone authorization.',
+          overwrites: CERTA_BOT_ONLY,
         },
       ],
     },
@@ -587,7 +618,13 @@ const BASE_BLUEPRINT: Blueprint = {
         description: 'Drone flight operations and compliance logbook',
         emoji: '🛩️',
         roles: ['certaUser'],
-        channels: ['certaGeneral', 'certaHelp', 'certaCompliance'],
+        channels: [
+          'certaGeneral',
+          'certaHelp',
+          'certaCompliance',
+          'certaFlightLogs',
+          'certaPreflight',
+        ],
       },
       {
         title: 'Argus',

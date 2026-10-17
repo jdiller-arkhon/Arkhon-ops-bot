@@ -17,7 +17,7 @@ Docker Compose.
 ## Layout
 
 ```
-packages/shared/   @arkhon/shared: loadConfig + env field schemas, createLogger, arkhonEmbed + BRAND_COLOR,
+packages/shared/   @arkhon/shared: openDatabase + D1 client/migrations, loadConfig + env field schemas, createLogger, arkhonEmbed + BRAND_COLOR,
                    products, UserFacingError + handleInteractionError + runInteraction,
                    loadCommands + deployCommands
 bots/ops/          @arkhon/ops-bot
@@ -39,7 +39,9 @@ bots/ops/          @arkhon/ops-bot
                          webhook.ts (signed website events), audit.ts (events + #mod-log)
   src/setup/             blueprint.ts (the whole server as data), plan.ts (pure diff),
                          apply.ts (Discord side), content.ts (welcome/rules), session.ts (preview/confirm)
-bots/certa/, bots/argus/ placeholders for the next two bots
+bots/certa/        @arkhon/certa-bot: flight logging, currency, reminders, preflight, leaderboard
+                   (certa/ API client + mock, domain/ pure logic, preflight/, jobs/ scheduler)
+bots/argus/        placeholder for the next bot
 deploy/cloudflare/       Cloudflare hosting: Worker + one always-on Container per bot (bots.ts is pure and tested),
                          D1 database served to the containers by src/d1-bridge.ts
 prisma/schema.prisma     single schema for all bots; prisma/migrations are PostgreSQL migrations,

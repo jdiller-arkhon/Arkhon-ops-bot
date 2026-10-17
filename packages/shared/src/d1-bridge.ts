@@ -4,7 +4,7 @@
  * On Cloudflare the bot runs in a container, which cannot hold a D1 binding. The Worker can, so it
  * answers plain HTTP requests the container sends to http://d1.internal (intercepted by the Worker,
  * never public) and runs them against its `DB` binding. The container wraps that in an object with
- * the D1 binding methods Prisma's D1 adapter uses (bots/ops/src/d1/bridge.ts); the Worker side is
+ * the D1 binding methods Prisma's D1 adapter uses (d1-client.ts); the Worker side is
  * deploy/cloudflare/src/d1-bridge.ts. Runtime-neutral: works in Node and in Workers.
  */
 

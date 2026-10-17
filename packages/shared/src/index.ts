@@ -6,3 +6,6 @@ export * from './errors.js';
 export * from './commands.js';
 export * from './member-id.js';
 export * from './d1-bridge.js';
+export * from './d1-client.js';
+export * from './d1-migrate.js';
+export * from './database.js';

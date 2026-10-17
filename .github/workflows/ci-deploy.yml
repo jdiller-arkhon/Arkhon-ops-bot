@@ -31,8 +31,10 @@ jobs:
       - run: pnpm test
       - run: node scripts/d1-migrations.mjs check
       - run: pnpm build
-      - name: Build the bot image
-        run: docker build -f bots/ops/Dockerfile -t arkhon-ops:ci .
+      - name: Build the bot images
+        run: |
+          docker build -f bots/ops/Dockerfile -t arkhon-ops:ci .
+          docker build -f bots/certa/Dockerfile -t arkhon-certa:ci .
 
   deploy:
     needs: check
@@ -66,7 +68,7 @@ jobs:
       - if: steps.creds.outputs.ready == 'true'
         run: pnpm install --frozen-lockfile
 
-      - name: Deploy Worker and bot container
+      - name: Deploy Worker and bot containers
         if: steps.creds.outputs.ready == 'true'
         run: pnpm deploy:cloudflare
 
@@ -92,4 +94,17 @@ jobs:
             echo "::warning::Skipping command registration: add DISCORD_TOKEN, DISCORD_CLIENT_ID and DISCORD_GUILD_ID."
           else
             pnpm deploy:commands --guild
+          fi
+
+      - name: Register Certa slash commands
+        if: steps.creds.outputs.ready == 'true'
+        env:
+          CERTA_DISCORD_TOKEN: ${{ secrets.CERTA_DISCORD_TOKEN }}
+          CERTA_DISCORD_CLIENT_ID: ${{ secrets.CERTA_DISCORD_CLIENT_ID || vars.CERTA_DISCORD_CLIENT_ID }}
+          DISCORD_GUILD_ID: ${{ secrets.DISCORD_GUILD_ID }}
+        run: |
+          if [ -z "$CERTA_DISCORD_TOKEN" ] || [ -z "$CERTA_DISCORD_CLIENT_ID" ] || [ -z "$DISCORD_GUILD_ID" ]; then
+            echo "::warning::Skipping Certa command registration: add CERTA_DISCORD_TOKEN, CERTA_DISCORD_CLIENT_ID and DISCORD_GUILD_ID."
+          else
+            pnpm deploy:commands:certa --guild
           fi

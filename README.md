@@ -6,7 +6,7 @@ Discord bots for the Arkhon Industries pilot community server, which covers two 
 | Bot                                                                        | Folder       | Status  |
 | -------------------------------------------------------------------------- | ------------ | ------- |
 | Ops Bot (support tickets, onboarding, moderation, release notes, feedback) | `bots/ops`   | ready   |
-| Certa Bot                                                                  | `bots/certa` | planned |
+| Certa Bot                                                                  | `bots/certa` | ready   |
 | Argus Bot                                                                  | `bots/argus` | planned |
 
 Stack: Node.js 20, TypeScript 5 (strict), discord.js v14, pnpm workspaces, Prisma (SQLite in dev,
@@ -298,6 +298,9 @@ One-time setup, in GitHub → Settings → Secrets and variables → Actions →
 | `ARKHON_WEBSITE_URL`         | the website's public URL                                                                                                                                                                                                                   |
 | `ARKHON_COMMUNITY_API_TOKEN` | same value as the website's `COMMUNITY_BOT_API_TOKEN` (`openssl rand -hex 32`, set on both)                                                                                                                                                |
 | `MEMBER_WEBHOOK_SECRET`      | same value as the website's `COMMUNITY_BOT_WEBHOOK_SECRET` (`openssl rand -hex 32`, set on both)                                                                                                                                           |
+| `CERTA_DISCORD_TOKEN`        | Certa application → Bot → Reset Token (a separate Discord application from the Ops Bot)                                                                                                                                                    |
+| `CERTA_DISCORD_CLIENT_ID`    | Certa application → General Information → Application ID (also lets `/setup server` give the Certa bot access to its channels)                                                                                                             |
+| `CERTA_API_MODE`             | `mock` until the Certa API is live; `http` also needs `CERTA_API_BASE_URL` and `CERTA_API_TOKEN`                                                                                                                                           |
 
 Any other variable from `.env.example` (for example `GITHUB_TOKEN`, `TICKET_MODE`, `LOG_LEVEL`) can
 be added as a secret or a plain variable the same way. Without the Cloudflare secrets the deploy job
@@ -342,11 +345,17 @@ NAME` in `deploy/cloudflare`. The bot restarts with the new value within 5 minut
   continuously: at most about $20/month at full CPU, less in practice because CPU is billed only
   while in use. D1 at this size fits in the plan's included usage.
 
-**Certa and Argus bots.** `bots/certa` and `bots/argus` are reserved but not built yet. When one is,
-give it a Dockerfile like the Ops Bot's, then add it in three places: an entry in
-`deploy/cloudflare/src/bots.ts`, a container class in `src/worker.ts` (copy `OpsBot`), and a
-`containers` / `durable_objects` / `migrations` entry in `wrangler.jsonc`. The tests check that
-each bot is bound to exactly one container instance.
+**Certa bot.** The Certa bot runs as a second container (`CertaBot`) next to the Ops Bot, sharing
+the same D1 database (`certa_*` tables). It needs no public paths; the Worker only health-checks it.
+The workflow also registers its slash commands. After the first deploy with `CERTA_DISCORD_CLIENT_ID`
+set, invite the Certa application (scopes `bot applications.commands`, permissions 19456) and re-run
+`/setup server` so it can post in `#flight-logs` and `#preflight`. It adds a second always-on `basic`
+instance to the cost above. See `bots/certa/README.md` for its commands and settings.
+
+**Argus bot.** `bots/argus` is reserved. Add it like Certa: a Dockerfile, an entry in
+`deploy/cloudflare/src/bots.ts`, a container class in `src/worker.ts`, and a `containers` /
+`durable_objects` / `migrations` entry in `wrangler.jsonc`. The tests check that each bot is bound
+to exactly one container instance.
 
 ## 6. Release webhooks
 

@@ -3,15 +3,15 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { readdirSync, readFileSync } from 'node:fs';
-import { createLogger } from '@arkhon/shared';
+import { createLogger } from '../src/logger.js';
 import { describe, expect, it } from 'vitest';
-import type { D1Bridge, D1BridgeStatement } from '../src/d1/bridge.js';
+import type { D1Bridge, D1BridgeBoundStatement } from '../src/d1-client.js';
 import {
   D1_MIGRATIONS_DIR,
   applyD1Migrations,
   pendingMigrations,
   splitStatements,
-} from '../src/d1/migrate.js';
+} from '../src/d1-migrate.js';
 
 const logger = createLogger('test', { level: 'silent' });
 
@@ -19,7 +19,7 @@ const logger = createLogger('test', { level: 'silent' });
 function fakeD1(applied: string[] = []): D1Bridge & { batches: string[][] } {
   const names = [...applied];
   const batches: string[][] = [];
-  const statement = (sql: string, params: unknown[]): D1BridgeStatement => ({
+  const statement = (sql: string, params: unknown[]): D1BridgeBoundStatement => ({
     sql,
     params,
     run: async () => ({ success: true }),
@@ -100,5 +100,28 @@ describe('applyD1Migrations', () => {
     ]);
     expect(await applyD1Migrations(db, logger, dirUrl)).toEqual([]);
     expect(db.batches).toHaveLength(1);
+  });
+
+  it('skips a file another bot applied first, and still fails on a real error', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'd1-migrate-'));
+    writeFileSync(join(dir, '0001_init.sql'), 'CREATE TABLE "a" ("id" TEXT);\n');
+    const dirUrl = pathToFileURL(dir + '/');
+
+    // The other bot's batch lands between our read of the tracking table and our batch.
+    const raced = fakeD1();
+    raced.batch = async (statements) => {
+      await fakeD1().batch(statements);
+      (raced as unknown as { prepare: D1Bridge['prepare'] }).prepare = fakeD1([
+        '0001_init.sql',
+      ]).prepare;
+      throw new Error('UNIQUE constraint failed: _arkhon_d1_migrations.name');
+    };
+    expect(await applyD1Migrations(raced, logger, dirUrl)).toEqual([]);
+
+    const broken = fakeD1();
+    broken.batch = async () => {
+      throw new Error('near "CREAT": syntax error');
+    };
+    await expect(applyD1Migrations(broken, logger, dirUrl)).rejects.toThrow('syntax error');
   });
 });

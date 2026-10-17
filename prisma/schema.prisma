@@ -134,3 +134,94 @@ model OpsWebhookEvent {
 
   @@map("ops_webhook_events")
 }
+
+// ---------------------------------------------------------------- Certa bot
+
+// Discord account <-> Certa account. Never store certificate numbers or other government IDs.
+model CertaLink {
+  discordUserId    String   @id
+  certaUserId      String   @unique
+  displayName      String
+  remindersEnabled Boolean  @default(true)
+  linkedAt         DateTime @default(now())
+
+  @@map("certa_links")
+}
+
+// Recurrent training reminders already sent, per due date, so none repeats. A new due date
+// (training completed) starts a fresh cycle.
+model CertaReminderSend {
+  discordUserId String
+  dueDate       String // YYYY-MM-DD
+  thresholdDays Int
+  sentAt        DateTime @default(now())
+
+  @@id([discordUserId, dueDate, thresholdDays])
+  @@map("certa_reminder_sends")
+}
+
+// Public summary of a logged flight, kept so "Share to #flight-logs" can post it later.
+// Location is already coarsened (no coordinates or street addresses); notes are never stored.
+model CertaSharedFlight {
+  flightId        String    @id
+  discordUserId   String
+  date            String // YYYY-MM-DD
+  publicLocation  String
+  aircraft        String
+  durationMinutes Int
+  missionType     String
+  sharedAt        DateTime?
+  createdAt       DateTime  @default(now())
+
+  @@index([discordUserId])
+  @@map("certa_shared_flights")
+}
+
+// Scheduled job occurrences already run ("recurrent-reminders" + "2026-10-15"), across restarts.
+model CertaJobRun {
+  job    String
+  runKey String
+  ranAt  DateTime @default(now())
+
+  @@id([job, runKey])
+  @@map("certa_job_runs")
+}
+
+// ---------------------------------------------------------------- Certa bot: mock Certa backend
+// Used only with CERTA_API_MODE=mock, until the Certa API exposes the bot endpoints.
+
+model CertaMockUser {
+  certaUserId      String   @id
+  displayName      String
+  lastTrainingDate String? // YYYY-MM-DD
+  lastTrainingKind String? // "initial" | "recurrent"
+  createdAt        DateTime @default(now())
+
+  @@map("certa_mock_users")
+}
+
+model CertaMockLinkCode {
+  code          String   @id
+  certaUserId   String
+  discordUserId String
+  redeemedAt    DateTime @default(now())
+
+  @@map("certa_mock_link_codes")
+}
+
+model CertaMockFlight {
+  flightId        String   @id
+  certaUserId     String
+  date            String // YYYY-MM-DD
+  location        String
+  locationIsIcao  Boolean
+  aircraft        String
+  durationMinutes Int
+  missionType     String
+  notes           String?
+  createdAt       DateTime @default(now())
+
+  @@index([certaUserId, date])
+  @@index([date])
+  @@map("certa_mock_flights")
+}
